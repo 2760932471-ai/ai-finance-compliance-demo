@@ -1,0 +1,7 @@
+{
+  "name": "AI Finance Compliance Demo",
+  "image": "mcr.microsoft.com/devcontainers/python:1-3.12-bookworm",
+  "postCreateCommand": "python -m unittest discover -s tests -v",
+  "forwardPorts": [8765],
+  "portsAttributes": {"8765": {"label": "Finance Demo", "onAutoForward": "notify"}}
+}

@@ -1,0 +1,218 @@
+{
+  "ontology": {
+    "entities": [
+      {
+        "code": "event",
+        "name": "业务事件",
+        "layer": "业务事件层",
+        "properties": [
+          {
+            "code": "amount",
+            "name": "支付金额",
+            "type": "number",
+            "required": true
+          },
+          {
+            "code": "date",
+            "name": "支付日期",
+            "type": "date",
+            "required": true
+          }
+        ]
+      },
+      {
+        "code": "document",
+        "name": "单据凭证",
+        "layer": "单据与凭证层",
+        "properties": [
+          {
+            "code": "number",
+            "name": "单据编号",
+            "type": "string",
+            "required": true
+          }
+        ]
+      },
+      {
+        "code": "contract",
+        "name": "合同",
+        "layer": "单据与凭证层",
+        "properties": [
+          {
+            "code": "amount",
+            "name": "合同金额",
+            "type": "number",
+            "required": true
+          }
+        ]
+      },
+      {
+        "code": "account",
+        "name": "核算科目",
+        "layer": "核算科目层",
+        "properties": [
+          {
+            "code": "code",
+            "name": "科目编码",
+            "type": "string",
+            "required": true
+          }
+        ]
+      },
+      {
+        "code": "supplier",
+        "name": "供应商",
+        "layer": "主体对象层",
+        "properties": [
+          {
+            "code": "bank_account",
+            "name": "收款账户",
+            "type": "string",
+            "required": true
+          }
+        ]
+      },
+      {
+        "code": "person",
+        "name": "经办人员",
+        "layer": "主体对象层",
+        "properties": [
+          {
+            "code": "name",
+            "name": "姓名",
+            "type": "string",
+            "required": true
+          }
+        ]
+      },
+      {
+        "code": "customer",
+        "name": "客户",
+        "layer": "主体对象层",
+        "properties": [
+          {
+            "code": "name",
+            "name": "客户名称",
+            "type": "string",
+            "required": false
+          }
+        ]
+      }
+    ],
+    "relations": [
+      {
+        "code": "has_document",
+        "name": "附有凭证",
+        "source": "event",
+        "target": "document"
+      },
+      {
+        "code": "under_contract",
+        "name": "依据合同",
+        "source": "event",
+        "target": "contract"
+      },
+      {
+        "code": "paid_to",
+        "name": "支付给",
+        "source": "event",
+        "target": "supplier"
+      },
+      {
+        "code": "handled_by",
+        "name": "经办",
+        "source": "event",
+        "target": "person"
+      },
+      {
+        "code": "booked_as",
+        "name": "计入科目",
+        "source": "event",
+        "target": "account"
+      }
+    ],
+    "classifications": [
+      "采购付款",
+      "费用报销",
+      "服务结算"
+    ],
+    "mappings": [
+      {
+        "source": "payment_total",
+        "target": "amount",
+        "entity": "event",
+        "property": "amount"
+      },
+      {
+        "source": "payment_day",
+        "target": "payment_date",
+        "entity": "event",
+        "property": "date"
+      },
+      {
+        "source": "vendor_account",
+        "target": "bank_account",
+        "entity": "supplier",
+        "property": "bank_account"
+      }
+    ]
+  },
+  "models": [
+    {
+      "id": "purchase-cross",
+      "name": "采购付款三维交叉核验",
+      "description": "合同履约、同类金额基线与收款账户关系共同核验。示例规则，可配置调优。",
+      "enabled": true,
+      "business_type": "全部",
+      "medium": 40,
+      "high": 70,
+      "rules": [
+        {
+          "id": "overpayment",
+          "name": "支付超出合同金额",
+          "dimension": "flow",
+          "kind": "over_contract",
+          "threshold": 0.05,
+          "weight": 30,
+          "enabled": true
+        },
+        {
+          "id": "missing-acceptance",
+          "name": "付款前缺少验收",
+          "dimension": "flow",
+          "kind": "missing_acceptance",
+          "threshold": 0,
+          "weight": 15,
+          "enabled": true
+        },
+        {
+          "id": "date-order",
+          "name": "付款早于签约",
+          "dimension": "flow",
+          "kind": "date_order",
+          "threshold": 0,
+          "weight": 15,
+          "enabled": true
+        },
+        {
+          "id": "amount-outlier",
+          "name": "同类金额显著离群",
+          "dimension": "stat",
+          "kind": "amount_outlier",
+          "threshold": 3.5,
+          "weight": 25,
+          "enabled": true
+        },
+        {
+          "id": "shared-account",
+          "name": "多个供应商共用收款账户",
+          "dimension": "graph",
+          "kind": "shared_account",
+          "threshold": 2,
+          "weight": 30,
+          "enabled": true
+        }
+      ]
+    }
+  ]
+}
