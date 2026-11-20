@@ -11,6 +11,7 @@ from compliance.risklab import RiskLab
 lab=RiskLab(s)
 labruns={m['id']:lab.run({'model_id':m['id'],'start':'2026-10','end':'2026-10'}) for m in lab.state()['active']}
 d['/api/compliance/lab/state']=lab.state()
+d['/api/compliance/lab/state']['runs']=[{'id':run['id'],'created':run['created']} for run in labruns.values()]
 d['/api/compliance/lab/data']=lab.state()['dataset']['rows']
 out=r.parent/'finance-web-preview';shutil.copytree(r/'static',out,dirs_exist_ok=True)
 js="const labRuns="+json.dumps(labruns,ensure_ascii=False)+";const previewData="+json.dumps(d,ensure_ascii=False)+";const previewGraph="+json.dumps(build_graph(state['dataset']['rows']),ensure_ascii=False)+";\n"+'''window.fetch=async function(url,options={}){let path=new URL(url,location.href).pathname;let body={};try{body=JSON.parse(options.body||'{}')}catch{}let value=previewData[path];if(path==='/api/compliance/lab/run'){const id=new URL(url,location.href).searchParams.get('id');value=Object.values(labRuns).find(r=>r.id===id)||labRuns.price;}let ok=true;if(options.method==='POST'){if(path==='/api/compliance/lab/run'){if(body.start!=='2026-10'||body.end!=='2026-10'){ok=false;value={error:'只读镜像预计算月份为2026-10，其他月份请使用本地完整版。'}}else value=labRuns[body.model_id];}else if(path==='/api/compliance/run')value=previewData[path];else if(path==='/api/compliance/tools/call'&&body.name==='graph')value=previewGraph;else{ok=false;value={error:'只读网页镜像：保存、上传与工具调用请使用本地完整版。'}}}if(!value){ok=false;value={error:'此功能请在本地完整版中使用'}}return {ok,json:async()=>structuredClone(value)};};
