@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:financial-audit:report-snapshot:v1",
+  "title": "Immutable audit report snapshot",
+  "type": "object",
+  "required": ["schema_version", "id", "time", "project", "run", "summary", "results", "ai_results", "evidence", "reviews", "technical_checks", "trace"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"const": "audit-report-v1"},
+    "id": {"type": "string", "pattern": "^[a-f0-9]{16}$"},
+    "time": {"type": "string"},
+    "project": {"type": "object", "required": ["id", "name"]},
+    "run": {"type": "object", "required": ["id", "rule_version", "confirmed_at", "confirmed_by"]},
+    "summary": {"type": "object", "required": ["verdict", "counts", "complete", "blockers"]},
+    "results": {"type": "array", "items": {"$ref": "#/$defs/result"}},
+    "ai_results": {"type": "array", "items": {"$ref": "#/$defs/result"}},
+    "evidence": {"type": "array", "items": {"type": "object", "required": ["id", "name", "page", "sha256", "method", "text"]}},
+    "reviews": {"type": "array", "items": {"type": "object"}},
+    "technical_checks": {"type": "object"},
+    "trace": {"type": "object"}
+  },
+  "$defs": {
+    "result": {
+      "type": "object",
+      "required": ["id", "verdict", "facts", "basis", "evidence_ids"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^T1-0[1-5]-[0-9]{2}$"},
+        "verdict": {"enum": ["通过", "不通过", "待人工判断"]},
+        "facts": {"type": "string"},
+        "basis": {"type": "string"},
+        "evidence_ids": {"type": "array", "items": {"type": "string", "pattern": "^D[0-9]+-P[0-9]+$"}}
+      }
+    }
+  }
+}

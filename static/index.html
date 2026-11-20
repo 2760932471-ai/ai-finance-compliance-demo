@@ -1,30 +1,3 @@
 <!doctype html>
-<html lang="zh-CN">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AI财务审核 · 业财智能合规</title><link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script></head>
-<body>
-<a class="skip" href="#main">跳转到主内容</a>
-<aside class="sidebar">
-  <a class="brand" href="#overview"><span class="brand-mark" aria-hidden="true">A<span>i</span></span><span>AI财务审核<small>FINANCE INTELLIGENCE</small></span></a>
-  <div class="workspace"><span class="dot"></span>业财智能合规<span class="workspace-tag">DEMO</span></div>
-  <nav aria-label="主导航">
-    <div class="nav-label">工作空间</div>
-    <a href="#overview" data-nav="overview"><span data-icon="grid"></span>审核工作台</a>
-    <a href="#risks" data-nav="risks"><span data-icon="shield"></span>风险研判<span id="risk-count" class="nav-count">—</span></a>
-    <div class="nav-label">审核中心</div>
-    <a href="#models" data-nav="models"><span data-icon="sliders"></span>风险模型</a>
-    <a href="#ontology" data-nav="ontology"><span data-icon="network"></span>财务本体</a>
-    <div class="nav-label">运营与追溯</div>
-    <a href="#graph" data-nav="graph"><span data-icon="share"></span>关联图谱</a>
-    <a href="#audit" data-nav="audit"><span data-icon="history"></span>发布与操作记录</a>
-    <a href="#tools" data-nav="tools"><span data-icon="code"></span>能力工具</a>
-  </nav>
-  <div class="sidebar-bottom"><span class="avatar">演</span><div>本地演示工作空间<small>配置 · 筛查 · 证据 · 研判</small></div></div>
-</aside>
-<div class="shell">
-  <header class="topbar"><div><span class="muted">业财多源一体化</span><span class="slash">/</span><strong id="breadcrumb">审核工作台</strong></div><div class="top-status"><span class="status-pill"><span class="dot"></span>本地演示</span><span id="active-version">v1</span></div></header>
-  <main id="main" tabindex="-1"><div class="loading">正在读取工作空间…</div></main>
-  <footer>AI财务审核 · 独立合规演示扩展<span>内置数据均为虚构 · 筛查结果须经人工核实</span></footer>
-</div>
-<div id="toast" role="status" aria-live="polite"></div>
-<dialog id="modal" aria-labelledby="dialog-title"><div id="modal-content"></div></dialog>
-</body></html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>AI财务审核</title><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="/style.css"></head>
+<body><div class="shell"><aside class="sidebar"><a class="brand" href="#workspace" data-nav="workspace"><span class="brandmark"><svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><path d="M9 5v22M23 5v22M5 11h22M5 21h22M16 8v16" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg></span><span>AI财务审核<small>材料 · 证据 · 结论</small></span></a><div class="nav-caption">审核工作空间</div><nav aria-label="主导航"><button aria-label="开始审核" data-nav="workspace" class="nav active"><span class="nav-icon" data-icon="upload"></span><span class="nav-label">开始审核</span></button><button aria-label="项目管理" data-nav="projects" class="nav"><span class="nav-icon" data-icon="folder"></span><span class="nav-label">项目管理</span></button><button aria-label="审核中心" data-nav="rules" class="nav"><span class="nav-icon" data-icon="shield"></span><span class="nav-label">审核中心</span></button><button aria-label="运营中心" data-nav="ops" class="nav"><span class="nav-icon" data-icon="chart"></span><span class="nav-label">运营中心</span></button></nav><div class="side-note"><span class="note-mark" data-icon="shield"></span><b>让每个结论有据可查</b><p>从材料到证据，从问题到处理。<br>AI 辅助审核，人工把关。</p></div><div class="side-bottom"><span class="avatar">财</span><div>财务工作台<small>本地工作空间</small></div><span class="version">v0.5</span></div></aside><main><header class="topbar"><div><span class="muted">工作空间</span><span class="slash">/</span><strong id="page-title">开始审核</strong></div><div class="top-right"><span class="engine-status" id="engine-status">正在连接…</span><span class="date" id="today"></span></div></header><div id="content" aria-live="polite"></div></main></div><div id="toast" role="status"></div><dialog id="modal"><div id="modal-body"></div></dialog><script src="/compliance/module.js"></script><script src="/facts.js"></script><script src="/app.js"></script></body></html>

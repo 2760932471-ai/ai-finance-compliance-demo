@@ -165,7 +165,18 @@ def validate_events(rows, ontology):
             if m["source"] in row:
                 require(m["target"] not in row or row[m["target"]] == row[m["source"]], f"来源字段 {m['source']} 与 {m['target']} 冲突")
                 row[m["target"]] = row[m["source"]]
+        provenance = row.get('provenance')
         row = {k: row.get(k) for k in FIELDS}
+        if provenance is not None:
+            require(isinstance(provenance, dict), '证据来源格式错误')
+            allowed = {'run_id','evidence_ids','actor','note','captured_at','evidence_sha256','source_hash','method'}
+            require(set(provenance) <= allowed, '证据来源包含不支持字段')
+            require(isinstance(provenance.get('run_id'), str) and re.fullmatch(r'[a-f0-9]{16}', provenance['run_id']), '原审核编号无效')
+            refs=provenance.get('evidence_ids')
+            require(isinstance(refs,list) and 1 <= len(refs) <= 100 and all(isinstance(x,str) and re.fullmatch(r'[A-Z0-9-]{1,60}',x) for x in refs), '证据编号无效')
+            for key in ('actor','note'):
+                text(provenance.get(key), key, 500)
+            row['provenance'] = copy.deepcopy(provenance)
         for field in FIELDS - {"amount", "contract_amount", "accepted"}:
             text(row[field], field)
         require(row["business_type"] in ontology["classifications"], "业务类型未在已发布本体中定义")

@@ -9,3 +9,8 @@ node_modules/
 .DS_Store
 *.sqlite3*
 work/
+
+data/
+deliverables/
+.report-qa/
+*.log

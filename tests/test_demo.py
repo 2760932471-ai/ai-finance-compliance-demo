@@ -8,11 +8,11 @@ import threading
 import unittest
 from pathlib import Path
 
-from app.domain import build_graph, evaluate, graph_path, impact, validate_config, validate_events
-from app.reports import csv_report, html_report, safe_cell
-from app.seed import demo_events, initial_config
-from app.store import Conflict, Store
-from server import create_server
+from compliance.domain import build_graph, evaluate, graph_path, impact, validate_config, validate_events
+from compliance.reports import csv_report, html_report, safe_cell
+from compliance.seed import demo_events, initial_config
+from compliance.store import Conflict, Store
+from server import create_server, TOKEN
 
 
 class DomainTests(unittest.TestCase):
@@ -189,7 +189,7 @@ class HttpTests(unittest.TestCase):
 
     def request(self,path,body=None,headers=None):
         conn=http.client.HTTPConnection('127.0.0.1',self.port)
-        defaults={'Content-Type':'application/json','X-Demo-Request':'1'}
+        defaults={'Content-Type':'application/json','X-Session-Token':TOKEN}
         if headers: defaults.update(headers)
         conn.request('POST' if body is not None else 'GET',path,body,defaults)
         r=conn.getresponse();result=(r.status,dict(r.getheaders()),r.read());conn.close();return result
@@ -197,28 +197,28 @@ class HttpTests(unittest.TestCase):
     def test_health_ui_and_tools(self):
         self.assertEqual(self.request('/health')[0],200)
         self.assertIn('AI财务审核',self.request('/')[2].decode())
-        response=self.request('/api/tools/call',json.dumps({'name':'metrics'}))
+        response=self.request('/api/compliance/tools/call',json.dumps({'name':'metrics'}))
         self.assertEqual(response[0],200);self.assertEqual(json.loads(response[2])['count'],34)
 
     def test_host_and_origin_rejected(self):
-        self.assertEqual(self.request('/api/state',headers={'Host':'attacker.example'})[0],403)
-        self.assertEqual(self.request('/api/run','{}',{'Origin':'https://evil.example'})[0],403)
+        self.assertEqual(self.request('/api/compliance/state',headers={'Host':'attacker.example'})[0],403)
+        self.assertEqual(self.request('/api/compliance/run','{}',{'Origin':'https://evil.example'})[0],403)
 
     def test_form_csrf_missing_header_and_invalid_json(self):
-        self.assertEqual(self.request('/api/run','{}',{'X-Demo-Request':''})[0],403)
-        self.assertEqual(self.request('/api/run','{}',{'Content-Type':'text/plain'})[0],400)
-        self.assertEqual(self.request('/api/run','{invalid}')[0],400)
-        self.assertEqual(self.request('/api/run','{"x":NaN}')[0],400)
+        self.assertEqual(self.request('/api/compliance/run','{}',{'X-Session-Token':''})[0],403)
+        self.assertEqual(self.request('/api/compliance/run','{}',{'Content-Type':'text/plain'})[0],400)
+        self.assertEqual(self.request('/api/compliance/run','{invalid}')[0],400)
+        self.assertEqual(self.request('/api/compliance/run','{"x":NaN}')[0],400)
 
     def test_path_traversal_and_unknown_endpoint(self):
         self.assertEqual(self.request('/../server.py')[0],404)
         self.assertEqual(self.request('/%2e%2e/server.py')[0],404)
-        self.assertEqual(self.request('/api/not-real','{}')[0],404)
+        self.assertEqual(self.request('/api/compliance/not-real','{}')[0],404)
 
     def test_missing_run_and_invalid_payload(self):
-        self.assertEqual(self.request('/api/run?id=missing')[0],404)
-        self.assertEqual(self.request('/api/config','{}')[0],400)
-        self.assertEqual(self.request('/api/config','[]')[0],400)
+        self.assertEqual(self.request('/api/compliance/run?id=missing')[0],404)
+        self.assertEqual(self.request('/api/compliance/config','{}')[0],400)
+        self.assertEqual(self.request('/api/compliance/config','[]')[0],400)
 
     def test_security_headers(self):
         headers=self.request('/')[1]
@@ -226,11 +226,11 @@ class HttpTests(unittest.TestCase):
         self.assertEqual(headers['X-Content-Type-Options'],'nosniff')
 
     def test_http_end_to_end_export(self):
-        status,_,body=self.request('/api/run','{}');self.assertEqual(status,200)
+        status,_,body=self.request('/api/compliance/run','{}');self.assertEqual(status,200)
         run=json.loads(body)
-        self.assertEqual(self.request('/api/export/csv?run='+run['id'])[0],200)
-        self.assertEqual(self.request('/api/export/html?run='+run['id'])[0],200)
-        self.assertEqual(self.request('/api/export/json?run='+run['id'])[0],200)
+        self.assertEqual(self.request('/api/compliance/export/csv?run='+run['id'])[0],200)
+        self.assertEqual(self.request('/api/compliance/export/html?run='+run['id'])[0],200)
+        self.assertEqual(self.request('/api/compliance/export/json?run='+run['id'])[0],200)
 
 
 if __name__=='__main__':unittest.main()

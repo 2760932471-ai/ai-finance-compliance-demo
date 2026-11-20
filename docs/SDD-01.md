@@ -1,3 +1,5 @@
+> 本文为独立扩展v0.1的历史规格。当前集成实现、接口及边界以README、INTEGRATION和REQUIREMENTS为准。
+
 # SDD-01：合规演示扩展
 
 ## 来源与范围

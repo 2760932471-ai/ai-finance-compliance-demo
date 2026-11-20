@@ -1,1 +1,1 @@
-"""Standalone financial-compliance demo extension; no external model calls."""
+"""Original financial audit application modules."""
