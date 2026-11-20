@@ -3,7 +3,7 @@ from collections import Counter
 from pathlib import Path
 from decimal import Decimal,InvalidOperation
 from datetime import datetime
-from . import store,materials,model,harness,decisions,recognition,checks
+from . import knowledge as knowledge_service,store,materials,model,harness,decisions,recognition,checks
 
 RULES=json.loads((Path(__file__).parent/'rules.json').read_text(encoding='utf-8'))
 STATES=('通过','不通过','待人工判断')
@@ -135,8 +135,10 @@ def process(run_id):
         # Keep volatile timestamps out of model input so identical evidence remains cacheable.
         calc['_local_checks']={k:v for k,v in run['technical_checks'].items() if k!='checked_at'}
         run['calculations']=calc
-        knowledge=[{'id':k['id'],'title':k['title'],'text':k['text'][:15000],'version':k['version']} for k in store.all_items('knowledge') if k['status']=='published']
+        recall=knowledge_service.retrieve(' '.join(r['name'] for r in RULES)+' '+ ' '.join(e.get('text','')[:200] for e in es)[:500],top_k=12,method='hybrid',docs=[d for d in store.all_items('knowledge') if not d.get('demo')])
+        knowledge=recall['results']
         run['knowledge_snapshot']=knowledge
+        run['knowledge_retrieval']={k:v for k,v in recall.items() if k!='results'}
         update(run,'规则审核',46,'材料识别完成，正在核对全部65条规则；原件只传递一次')
         any_failure=False
         for n,group in enumerate(['T1全部规则']):

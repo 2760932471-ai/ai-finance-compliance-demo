@@ -5,7 +5,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def package():
-    target = ROOT.parent / 'AI财务审核-v0.6-本地演示源码.zip'
+    target = ROOT.parent / 'AI财务审核-v0.7-本地演示源码.zip'
     folders = {'app','compliance','static','tests','scripts','docs','assets','examples','.devcontainer'}
     files = {'README.md','requirements.txt','server.py','bootstrap.py','launch.py','start-demo.cmd','start-demo.sh',
              'start.ps1','stop.ps1','启动系统.cmd','停止系统.cmd','.env.example','.gitignore','.gitattributes'}

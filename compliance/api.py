@@ -6,6 +6,7 @@ import re
 from .domain import build_graph, graph_path, require, text, validate_events
 from .reports import csv_report, html_report
 from .store import Store
+from . import graphdata
 
 
 def database(handler):
@@ -67,6 +68,8 @@ def read(handler, path, query):
         if path == '/lab/export': return handler.send(lab.get_run(query.get('id', [''])[0]), extra={'Content-Disposition': 'attachment; filename=statistical-evaluation.json'})
         if path == '/lab/data': return handler.send(lab.state()['dataset']['rows'], extra={'Content-Disposition': 'attachment; filename=historical-data.json'})
         raise FileNotFoundError()
+    if path == '/graph-data': return handler.send(graphdata.state(db))
+    if path == '/graph-template': return handler.send(graphdata.scenario(), extra={'Content-Disposition':'attachment; filename=graph-scenario.json'})
     if path == '/state':
         return handler.send(db.state())
     if path == '/run':
@@ -107,6 +110,8 @@ def write(handler, path, data):
         action = path.rsplit('/', 1)[-1]
         result = lab.run(data) if action == 'run' else lab.label(data) if action == 'label' else lab.mutate(action, data)
         return handler.send(result)
+    if path == '/graph-data':return handler.send(graphdata.save(db,data))
+    if path == '/graph-scenario':return handler.send(graphdata.save(db,{'rows':graphdata.scenario(),'source':'已有演示业务 + 补充生成的供应商场景','revision':data.get('revision')}))
     if path == '/config':
         result = db.save_config(data['config'], data['revision'])
     elif path == '/publish':
@@ -134,7 +139,10 @@ def write(handler, path, data):
             result = {'count': len(rows), 'total_amount': round(total, 2), 'average_amount': round(total / len(rows), 2) if rows else 0,
                       'definition': '按业务记录逐笔合计支付金额；不合并供应商'}
         elif name in ('graph', 'path'):
-            graph = build_graph(rows)
+            graph_source=graphdata.state(db)
+            graph = build_graph(graph_source['rows'] or rows)
+            graph['data_source']=graph_source['source']
+            graph['data_revision']=graph_source['revision']
             result = graph if name == 'graph' else {'path': graph_path(graph, data.get('source'), data.get('target'))}
         else:
             raise ValueError('工具名称不存在')

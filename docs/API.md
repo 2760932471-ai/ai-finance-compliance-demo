@@ -1,4 +1,4 @@
-# 集成本机API v0.6
+# 集成本机API v0.7
 
 服务：`http://127.0.0.1:8765`。所有请求只允许匹配本机Host；POST要求`Content-Type: application/json`和`X-Session-Token: 当前会话令牌`（先GET `/api/bootstrap` 获取token）。浏览器Origin必须匹配本机地址，无CORS开放。
 
@@ -41,7 +41,7 @@ POST `/api/compliance/capture` 接受 `{row,source_run,evidence_ids,actor,note,r
 
 原接口 `/api/upload`、`/api/runs/{id}`、`/api/runs/{id}/report`、原件页图片/下载接口保持原有路径和会话要求。证据深链接为 `/#run/{id}/evidence/{evidence_id}`。
 
-## 统计模型 API（v0.6）
+## 统计模型 API（v0.7）
 
 同一会话令牌与同源校验。前缀 `/api/compliance/lab`：
 
@@ -54,3 +54,15 @@ POST `/api/compliance/capture` 接受 `{row,source_run,evidence_ids,actor,note,r
 - POST `/label`：`run_id, result_id, label`（bool）、`actor, note`。
 
 过期修订返回409；参数错误400；未知评测404。统计模型评测结果不自动改写三维风险结果或正式审核结论。
+
+## v0.7 知识、诊断与图谱来源
+
+- GET `/api/knowledge/chunks?id=…`：原文与切片（稳定内容摘要、字符起止、版本、索引）。
+- POST `/api/knowledge/chunks`：`id, revision, config:{size,overlap,mode}`；size 100—2000，overlap小于size一半；mode为paragraph/fixed。
+- POST `/api/knowledge/recall`：`query, top_k, method`，method支持bm25/tfidf/hybrid；仅召回已发布知识，保留匹配词和分数；TF-IDF不宣称为语义Embedding。
+- GET/POST `/api/model/diagnostic`：GET仅检查模式/可执行文件，POST另调用`codex login status`；不读取密钥、不返回原始登录日志、不触发推理。
+- GET/POST `/api/compliance/graph-data`：读取或导入独立来源图谱；POST为`revision,source,rows`。历史修订保存在数据库中。
+- GET `/api/compliance/graph-template`：带明确来源标识的JSON演示模板。
+- POST `/api/compliance/graph-scenario`：`revision`，将当前独立图谱切换为内置演示场景。
+
+图谱每条记录必须包含id/name/supplier/bank_account/source_kind/source_note。source_kind为source（材料待核实）、synthetic（演示生成）或anonymized（匿名化）；amount允许null，person缺失时不构造虚假共同经办人。原业务记录与原审核结论保持独立。

@@ -109,6 +109,20 @@ class IntegrationTests(unittest.TestCase):
         self.assertEqual(self.call('/api/compliance/lab/run?id=unknown')[0],404)
         self.assertEqual(self.call('/api/compliance/lab/save', {'revision':0,'models':s['draft']})[0],409)
 
+    def test_knowledge_chunks_and_recall_http(self):
+        _,k=self.call('/api/knowledge',{'title':'采购流程','source':'测试','text':'采购付款须先验收。验收材料包括验收单及签字记录。'*30})
+        _,c=self.call('/api/knowledge/chunks?id='+k['id']);self.assertGreater(len(c['chunks']),1)
+        self.call('/api/knowledge/status',{'id':k['id'],'status':'published'})
+        code,result=self.call('/api/knowledge/recall',{'query':'采购付款验收','method':'hybrid','top_k':3});self.assertEqual(code,200);self.assertTrue(any(x['id']==k['id'] for x in result['results']))
+        self.assertEqual(self.call('/api/knowledge/chunks',{'id':k['id'],'revision':1,'config':{'size':100,'overlap':80}})[0],400)
+        self.assertEqual(self.call('/api/model/diagnostic',{},token=False)[0],403)
+
+    def test_graph_sources_http(self):
+        self.assertEqual(self.call('/api/compliance/graph-scenario',{'revision':0})[0],200)
+        _,graph=self.call('/api/compliance/tools/call',{'name':'graph'});self.assertEqual(len(graph['records']),34)
+        self.assertTrue(all(r['source_kind']=='synthetic' for r in graph['records']))
+        self.assertEqual(self.call('/api/compliance/graph-scenario',{'revision':0})[0],409)
+
 
 if __name__ == '__main__':
     unittest.main()

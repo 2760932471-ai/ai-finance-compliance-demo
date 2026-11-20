@@ -24,7 +24,7 @@ try:
 except OSError as exc:
     raise SystemExit(f'Cannot bind port {port}. Try: python launch.py --port 8766') from exc
 url = f'http://127.0.0.1:{server.server_port}'
-print(f'AI Finance Audit v0.5: {url}\nMode: {"configured AI" if args.live else "offline demonstration"}\nPress Ctrl+C to stop.', flush=True)
+print(f'AI Finance Audit v0.7: {url}\nMode: {"configured AI" if args.live else "offline demonstration"}\nPress Ctrl+C to stop.', flush=True)
 if not args.no_browser:
     timer = threading.Timer(.6, lambda: webbrowser.open(url))
     timer.daemon = True

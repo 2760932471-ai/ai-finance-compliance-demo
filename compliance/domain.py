@@ -195,20 +195,26 @@ def validate_events(rows, ontology):
 
 
 def build_graph(events):
-    nodes, edges = {}, set()
+    nodes, edges = {}, {}
     for row in events:
+        kind=row.get('source_kind','business')
         for prefix, field, label in (("supplier", "supplier", "供应商"), ("bank", "bank_account", "收款账户"), ("person", "person", "经办人"), ("event", "id", "业务事件")):
-            id_ = f"{prefix}:{row[field]}"
-            nodes[id_] = {"id": id_, "label": row[field], "type": prefix, "type_label": label}
-        edges.update(((f"supplier:{row['supplier']}", f"bank:{row['bank_account']}", "使用账户"), (f"event:{row['id']}", f"supplier:{row['supplier']}", "支付给"), (f"event:{row['id']}", f"person:{row['person']}", "经办")))
-    degree = defaultdict(int)
-    for a, b, _ in edges:
-        degree[a] += 1
-        degree[b] += 1
+            if not row.get(field):continue
+            id_=f"{prefix}:{row[field]}"
+            node=nodes.setdefault(id_,{"id":id_,"label":row[field],"type":prefix,"type_label":label,"record_ids":[],"source_kinds":[]})
+            if row['id'] not in node['record_ids']:node['record_ids'].append(row['id'])
+            if kind not in node['source_kinds']:node['source_kinds'].append(kind)
+        links=[(f"supplier:{row['supplier']}",f"bank:{row['bank_account']}","使用账户"),(f"event:{row['id']}",f"supplier:{row['supplier']}","支付给")]
+        if row.get('person'):links.append((f"event:{row['id']}",f"person:{row['person']}","经办"))
+        for a,b,label in links:
+            edge=edges.setdefault((a,b,label),{'source':a,'target':b,'label':label,'record_ids':[],'source_kinds':[]})
+            edge['record_ids'].append(row['id'])
+            if kind not in edge['source_kinds']:edge['source_kinds'].append(kind)
+    degree=defaultdict(int)
+    for a,b,_ in edges:degree[a]+=1;degree[b]+=1
     for node in nodes.values():
-        node["degree"] = degree[node["id"]]
-        node["centrality"] = round(node["degree"] / max(1, len(nodes) - 1), 4)
-    return {"nodes": list(nodes.values()), "edges": [{"source": a, "target": b, "label": label} for a, b, label in sorted(edges)]}
+        node['degree']=degree[node['id']];node['centrality']=round(node['degree']/max(1,len(nodes)-1),4)
+    return {'nodes':list(nodes.values()),'edges':[edges[k] for k in sorted(edges)],'records':events}
 
 
 def graph_path(graph, source, target):

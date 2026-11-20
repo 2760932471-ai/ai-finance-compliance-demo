@@ -1,11 +1,11 @@
 """Local single-user audit application. Python stdlib server; loopback only."""
-import concurrent.futures,hashlib,io,json,mimetypes,os,re,secrets,threading,zipfile
+import base64,concurrent.futures,hashlib,io,json,mimetypes,os,re,secrets,threading,zipfile
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse,unquote,parse_qs
 from compliance import api as compliance_api
 from compliance.store import Conflict, Store as ComplianceStore
-from app import store,engine,materials,model,report,jev,harness,evaluations,decisions,checks,security
+from app import knowledge,store,engine,materials,model,report,jev,harness,evaluations,decisions,checks,security
 
 ROOT=Path(__file__).resolve().parent
 if (ROOT/'.env').exists():
@@ -55,12 +55,14 @@ def create_upload(raw,name,project_id='',parent_run='',corrections=None):
 def seed():
     if not store.all_items('knowledge'):
         store.put('knowledge',{'id':'official-t1','title':'T1活动类审核标准 · 比赛原文','source':'2026年10月解决方案团队AI内部实战通知','version':'T1-2026.10-v1','status':'published','locked':True,'text':'\n'.join(r['id']+' '+r['name']+'：'+r['principle'] for r in engine.RULES),'created_at':store.now()})
+    if os.getenv('AUDIT_AI')=='off' and not any(k['id']=='demo-procurement-policy' for k in store.all_items('knowledge')):
+        guide=json.loads((ROOT/'examples/procurement-knowledge.json').read_text(encoding='utf-8'));guide['created_at']=store.now();store.put('knowledge',guide)
     for r in store.all_items('run'):
         if r['status'] in ('processing','queued'):
             r.update(status='interrupted',error='上次运行被中断，原包和阶段记录已保留；可重试');store.put('run',r)
 
 class Handler(BaseHTTPRequestHandler):
-    server_version='FinancialReview/0.6'
+    server_version='FinancialReview/0.7'
     sys_version=''
     def setup(self):
         super().setup()
@@ -76,7 +78,12 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header('X-Content-Type-Options','nosniff');self.send_header('Cache-Control','no-store')
         self.send_header('X-Frame-Options','DENY');self.send_header('Referrer-Policy','no-referrer')
         self.send_header('Cross-Origin-Resource-Policy','same-origin')
-        self.send_header('Content-Security-Policy',"default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'")
+        csp="default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+        if urlparse(self.path).path=='/demo.html' and status==200 and kind.startswith('text/html'):
+            # Trust only the exact bundled presentation script, not arbitrary inline scripts.
+            hashes=["'sha256-"+base64.b64encode(hashlib.sha256(script).digest()).decode()+"'" for script in re.findall(rb'<script>(.*?)</script>',data,re.S)]
+            csp=csp.replace("script-src 'self'", "script-src 'self' "+' '.join(hashes))+"; font-src 'self' data:"
+        self.send_header('Content-Security-Policy',csp)
         for k,v in (extra or {}).items():self.send_header(k,v)
         self.end_headers();self.wfile.write(data)
     def body(self,limit):
@@ -117,10 +124,13 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):self.dispatch()
     def read(self):
         u=urlparse(self.path);p=u.path;q=parse_qs(u.query)
-        if p=='/health':return self.send({'status':'ok','version':'0.6','mode':'integrated-local'})
+        if p=='/health':return self.send({'status':'ok','version':'0.7','mode':'integrated-local'})
         if p.startswith('/api/compliance/'):
             return compliance_api.read(self,p[len('/api/compliance'):],q)
-        if p=='/api/bootstrap':return self.send({'app_version':'0.6','offline':os.getenv('AUDIT_AI','codex')=='off','token':TOKEN,'model_available':model.available(),'engine':'Codex · 当前登录','rules_version':engine.RULES[0]['version'],'harness':harness.VERSION,'jev':jev.status(),'decision':decisions.status()})
+        if p=='/api/bootstrap':return self.send({'app_version':'0.7','offline':os.getenv('AUDIT_AI','codex')=='off','token':TOKEN,'model_available':model.available(),'model_diagnostic':model.diagnostic(),'engine':'Codex · 当前登录','rules_version':engine.RULES[0]['version'],'harness':harness.VERSION,'jev':jev.status(),'decision':decisions.status()})
+        if p=='/api/model/diagnostic':return self.send(model.diagnostic())
+        if p=='/api/knowledge/chunks':
+            doc=store.get('knowledge',q.get('id',[''])[0]);return self.send({'document':doc,'chunks':knowledge.chunks(doc)})
         if p=='/api/projects':return self.send(projects())
         if p=='/api/rules':return self.send(engine.RULES)
         if p=='/api/knowledge':return self.send(store.all_items('knowledge'))
@@ -155,14 +165,7 @@ class Handler(BaseHTTPRequestHandler):
             disposition='inline' if fmt=='html' and q.get('preview')==['1'] else 'attachment'
             return self.send(payload,kind=kind,extra={'Content-Disposition':f'{disposition}; filename="audit-{x["run_id"]}-{x["id"]}.{fmt}"'})
         if p=='/api/knowledge/search':
-            query=q.get('q',[''])[0];terms=set(re.findall(r'[A-Za-z0-9]+|[\u4e00-\u9fff]{2}',query))
-            matches=[]
-            for k in store.all_items('knowledge'):
-                if k['status']!='published':continue
-                for i,line in enumerate(k['text'].splitlines()):
-                    score=sum(t.lower() in line.lower() for t in terms)
-                    if score:matches.append({'id':k['id'],'title':k['title'],'line':i+1,'text':line,'score':score,'version':k['version']})
-            return self.send(sorted(matches,key=lambda x:x['score'],reverse=True)[:20])
+            return self.send(knowledge.retrieve(q.get('q',[''])[0])['results'])
         if p.startswith('/api/'):raise FileNotFoundError()
         static=ROOT/'static';path=static/('index.html' if p=='/' else p.lstrip('/'))
         if not path.resolve().is_relative_to(static.resolve()) or not path.is_file():raise FileNotFoundError()
@@ -229,6 +232,9 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(engine.chat(run,question,body.get('rule_id','')))
         if p=='/api/projects/update':
             x=store.get('project',body['id']);x['name']=body.get('name',x['name'])[:100];x['archived']=bool(body.get('archived',x['archived']));return self.send(store.put('project',x))
+        if p=='/api/model/diagnostic':return self.send(model.diagnostic(check_login=True))
+        if p=='/api/knowledge/recall':return self.send(knowledge.retrieve(body.get('query'),body.get('top_k',6),body.get('method','bm25')))
+        if p=='/api/knowledge/chunks':return self.send(knowledge.resegment(body['id'],body.get('config'),body.get('revision',1)))
         if p=='/api/knowledge':
             title=body.get('title','').strip();text=body.get('text','').strip()
             if not title or not text:raise ValueError('请填写标题和知识正文')
@@ -261,7 +267,7 @@ if __name__=='__main__':
     parser.add_argument('--port',type=int,default=int(os.getenv('PORT','8765')))
     args=parser.parse_args()
     server=create_server(args.port)
-    print(f'AI Finance Audit v0.6: http://127.0.0.1:{server.server_port}',flush=True)
+    print(f'AI Finance Audit v0.7: http://127.0.0.1:{server.server_port}',flush=True)
     try:server.serve_forever()
     except KeyboardInterrupt:pass
     finally:server.server_close()
