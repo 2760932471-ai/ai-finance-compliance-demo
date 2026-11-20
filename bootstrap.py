@@ -13,7 +13,7 @@ def main():
     if not python.is_file():
         print('Creating local .venv ...', flush=True)
         subprocess.run([sys.executable, '-m', 'venv', str(root / '.venv')], check=True)
-    check = subprocess.run([str(python), '-c', 'import pypdf,pypdfium2,PIL,reportlab'], capture_output=True)
+    check = subprocess.run([str(python), '-c', 'import pypdf,pypdfium2,PIL,reportlab,sklearn'], capture_output=True)
     if check.returncode:
         print('Installing requirements.txt dependencies (internet required on first launch) ...', flush=True)
         subprocess.run([str(python), '-m', 'pip', 'install', '-r', str(root / 'requirements.txt')], check=True)

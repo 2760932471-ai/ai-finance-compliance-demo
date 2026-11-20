@@ -59,6 +59,14 @@ def capture(db, body):
 
 def read(handler, path, query):
     db = database(handler)
+    if path.startswith('/lab/'):
+        from .risklab import RiskLab
+        lab = RiskLab(db)
+        if path == '/lab/state': return handler.send(lab.state())
+        if path == '/lab/run': return handler.send(lab.get_run(query.get('id', [''])[0]))
+        if path == '/lab/export': return handler.send(lab.get_run(query.get('id', [''])[0]), extra={'Content-Disposition': 'attachment; filename=statistical-evaluation.json'})
+        if path == '/lab/data': return handler.send(lab.state()['dataset']['rows'], extra={'Content-Disposition': 'attachment; filename=historical-data.json'})
+        raise FileNotFoundError()
     if path == '/state':
         return handler.send(db.state())
     if path == '/run':
@@ -93,6 +101,12 @@ def read(handler, path, query):
 
 def write(handler, path, data):
     db = database(handler)
+    if path.startswith('/lab/'):
+        from .risklab import RiskLab
+        lab = RiskLab(db)
+        action = path.rsplit('/', 1)[-1]
+        result = lab.run(data) if action == 'run' else lab.label(data) if action == 'label' else lab.mutate(action, data)
+        return handler.send(result)
     if path == '/config':
         result = db.save_config(data['config'], data['revision'])
     elif path == '/publish':

@@ -1,4 +1,4 @@
-# 集成本机API v0.5
+# 集成本机API v0.6
 
 服务：`http://127.0.0.1:8765`。所有请求只允许匹配本机Host；POST要求`Content-Type: application/json`和`X-Session-Token: 当前会话令牌`（先GET `/api/bootstrap` 获取token）。浏览器Origin必须匹配本机地址，无CORS开放。
 
@@ -40,3 +40,17 @@ curl http://127.0.0.1:8765/api/compliance/tools/call \
 POST `/api/compliance/capture` 接受 `{row,source_run,evidence_ids,actor,note,revision,replace_demo}`。row为完整业务字段，revision使用dataset.revision。首次替换内置虚构数据必须明确replace_demo=true；后续追加时拒绝重复业务单号。原件引用必须存在且来源运行已完成材料处理。记录来源、摘要和确认依据。导入业务中的provenance引用也必须通过同样的来源检查。
 
 原接口 `/api/upload`、`/api/runs/{id}`、`/api/runs/{id}/report`、原件页图片/下载接口保持原有路径和会话要求。证据深链接为 `/#run/{id}/evidence/{evidence_id}`。
+
+## 统计模型 API（v0.6）
+
+同一会话令牌与同源校验。前缀 `/api/compliance/lab`：
+
+- GET `/state`：草稿、发布模型、版本、历史数据和最近评测。
+- POST `/save`：`revision, models`；POST `/publish`：`revision, note`。
+- POST `/import`：`revision, source, rows`，替换当前历史数据。
+- POST `/run`：`model_id, start, end`（YYYY-MM，最多12个月）。
+- GET `/run?id=…`、`/export?id=…`：历史评测及快照。
+- GET `/data`：当前历史数据 JSON。
+- POST `/label`：`run_id, result_id, label`（bool）、`actor, note`。
+
+过期修订返回409；参数错误400；未知评测404。统计模型评测结果不自动改写三维风险结果或正式审核结论。

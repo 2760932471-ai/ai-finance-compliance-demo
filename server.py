@@ -60,7 +60,7 @@ def seed():
             r.update(status='interrupted',error='上次运行被中断，原包和阶段记录已保留；可重试');store.put('run',r)
 
 class Handler(BaseHTTPRequestHandler):
-    server_version='FinancialReview/0.5'
+    server_version='FinancialReview/0.6'
     sys_version=''
     def setup(self):
         super().setup()
@@ -117,10 +117,10 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):self.dispatch()
     def read(self):
         u=urlparse(self.path);p=u.path;q=parse_qs(u.query)
-        if p=='/health':return self.send({'status':'ok','version':'0.5','mode':'integrated-local'})
+        if p=='/health':return self.send({'status':'ok','version':'0.6','mode':'integrated-local'})
         if p.startswith('/api/compliance/'):
             return compliance_api.read(self,p[len('/api/compliance'):],q)
-        if p=='/api/bootstrap':return self.send({'app_version':'0.5','offline':os.getenv('AUDIT_AI','codex')=='off','token':TOKEN,'model_available':model.available(),'engine':'Codex · 当前登录','rules_version':engine.RULES[0]['version'],'harness':harness.VERSION,'jev':jev.status(),'decision':decisions.status()})
+        if p=='/api/bootstrap':return self.send({'app_version':'0.6','offline':os.getenv('AUDIT_AI','codex')=='off','token':TOKEN,'model_available':model.available(),'engine':'Codex · 当前登录','rules_version':engine.RULES[0]['version'],'harness':harness.VERSION,'jev':jev.status(),'decision':decisions.status()})
         if p=='/api/projects':return self.send(projects())
         if p=='/api/rules':return self.send(engine.RULES)
         if p=='/api/knowledge':return self.send(store.all_items('knowledge'))
@@ -261,7 +261,7 @@ if __name__=='__main__':
     parser.add_argument('--port',type=int,default=int(os.getenv('PORT','8765')))
     args=parser.parse_args()
     server=create_server(args.port)
-    print(f'AI Finance Audit v0.5: http://127.0.0.1:{server.server_port}',flush=True)
+    print(f'AI Finance Audit v0.6: http://127.0.0.1:{server.server_port}',flush=True)
     try:server.serve_forever()
     except KeyboardInterrupt:pass
     finally:server.server_close()

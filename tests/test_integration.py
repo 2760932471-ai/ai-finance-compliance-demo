@@ -98,6 +98,17 @@ class IntegrationTests(unittest.TestCase):
         self.assertEqual(preserved['config'], old['config'])
         self.assertEqual(preserved['dataset'], old['dataset'])
 
+    def test_statistical_lab_http_and_guards(self):
+        self.assertEqual(self.call('/api/compliance/lab/run', {}, token=False)[0],403)
+        code,s=self.call('/api/compliance/lab/state');self.assertEqual(code,200)
+        self.assertEqual(len(s['dataset']['rows']),1440)
+        self.assertEqual(self.call('/api/compliance/lab/run', {'model_id':'price','start':'invalid','end':'2026-10'})[0],400)
+        code,run=self.call('/api/compliance/lab/run', {'model_id':'price','start':'2026-10','end':'2026-10'})
+        self.assertEqual(code,200);self.assertEqual(run['result']['metrics']['tp'],2)
+        self.assertEqual(self.call('/api/compliance/lab/export?id='+run['id'])[1]['dataset_sha256'],run['dataset_sha256'])
+        self.assertEqual(self.call('/api/compliance/lab/run?id=unknown')[0],404)
+        self.assertEqual(self.call('/api/compliance/lab/save', {'revision':0,'models':s['draft']})[0],409)
+
 
 if __name__ == '__main__':
     unittest.main()
