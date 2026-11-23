@@ -1,5 +1,7 @@
 """Image-grounded transcription. Raw OCR is retained, never silently promoted to fact."""
 import hashlib,json,os
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
+from dataclasses import dataclass
 from pathlib import Path
 from PIL import Image,ImageOps
 import pypdfium2 as pdfium
@@ -64,50 +66,102 @@ def image_inputs(e,d,folder):
         picture.close()
     im.close();return paths,records
 
-def enhance(evidence,docs,folder,progress,record=lambda meta:None,infer=None):
-    infer=infer or model.infer
-    pending=[e for e in evidence if e.get('method')=='Windows OCR' and e.get('image')]
-    for e in pending:preserve_raw(e)
-    if not pending:return
-    if os.getenv('AUDIT_VISUAL_OCR','on').lower() in ('off','0','false'):
-        for e in pending:unavailable(e,'视觉转写未启用，请人工核对原图')
-        return
-    bydoc={d['id']:d for d in docs};batch_size=8;blocked=''
-    for start in range(0,len(pending),batch_size):
-        batch=pending[start:start+batch_size]
-        end = start + len(batch)
-        total = len(pending)
-        label = f'第 {start+1}–{end} 页（共 {total} 页）'
-        if blocked:
-            for e in batch:unavailable(e,blocked)
-            progress(end,total,f'{label} 转写未执行：{blocked}')
-            continue
-        progress(start,total,f'{label} 正在准备原图')
-        entries=[];images=[];inputs={};eligible=[]
-        for e in batch:
-            try:
-                paths,info=image_inputs(e,bydoc[e['document_id']],folder/'visual-inputs')
-                entries.append({'id':e['id'],'images':[{'sequence':len(images)+i+1,'region':v['region']} for i,v in enumerate(info)]})
-                images.extend(paths);inputs[e['id']]=info;eligible.append(e)
-            except Exception:unavailable(e,'无法生成高分辨率识别图，请核对原文件')
-        if not eligible:
-            progress(end,total,f'{label} 图像准备失败，需对照原件')
-            continue
-        progress(start,total,f'{label} 已准备 {len(images)} 张图，等待模型返回')
+@dataclass
+class VisualBatch:
+    label: str
+    count: int
+    evidence: list
+    inputs: dict
+    images: list
+    prompt: str
+
+
+def prepare_batch(pages, start, total, bydoc, folder):
+    # PDFium and PIL run on the coordinator thread. Only model requests overlap.
+    label = f'第 {start+1}–{start+len(pages)} 页（共 {total} 页）'
+    entries, images, inputs, eligible = [], [], {}, []
+    for e in pages:
         try:
-            value,meta=infer(PROMPT+'\n证据与附图顺序：'+json.dumps(entries,ensure_ascii=False),SCHEMA,images,timeout=int(os.getenv('MODEL_TIMEOUT','600')))
-            pages=validate(value,[e['id'] for e in eligible]);lookup={p['id']:p for p in pages}
-            meta={**meta,'stage':'visual_ocr','evidence_ids':[e['id'] for e in eligible]};record(meta)
-            for e in eligible:apply(e,lookup[e['id']],meta,inputs[e['id']])
-            message = f'{label} 已取得 {len(pages)} 页转写结果'
-            if meta.get('cached'):
-                message += '（使用缓存）'
-            if len(eligible) < len(batch):
-                message += f'，另有 {len(batch)-len(eligible)} 页图像准备失败'
-        except Exception as exc:
-            reason='视觉转写未完成：'+str(exc)[:220]
-            message = f'{label} {reason}'
-            record({'stage':'visual_ocr','error':reason,'evidence_ids':[e['id'] for e in eligible]})
-            for e in eligible:unavailable(e,reason)
-            if any(word in reason for word in ('用量受限','登录失效','未找到可用','配置不兼容')):blocked=reason
-        progress(end,total,message)
+            paths, info = image_inputs(e, bydoc[e['document_id']], folder/'visual-inputs')
+        except Exception:
+            unavailable(e, '无法生成高分辨率识别图，请核对原文件')
+            continue
+        regions = [{'sequence':len(images)+i+1, 'region':v['region']} for i,v in enumerate(info)]
+        entries.append({'id':e['id'], 'images':regions})
+        images.extend(paths)
+        inputs[e['id']] = info
+        eligible.append(e)
+    # Keep the request bytes compatible with existing on-device result caches.
+    prompt = PROMPT+'\n证据与附图顺序：'+json.dumps(entries,ensure_ascii=False)
+    return VisualBatch(label,len(pages),eligible,inputs,images,prompt)
+
+
+def finish_batch(batch, future, record):
+    ids = [e['id'] for e in batch.evidence]
+    try:
+        value, meta = future.result()
+        pages = {p['id']: p for p in validate(value,ids)}
+    except Exception as exc:
+        reason = '视觉转写未完成：'+str(exc)[:220]
+        record({'stage':'visual_ocr','error':reason,'evidence_ids':ids})
+        for e in batch.evidence:
+            unavailable(e,reason)
+        fatal = any(word in reason for word in ('用量受限','登录失效','未找到可用','配置不兼容'))
+        return reason, reason if fatal else ''
+    meta = {**meta,'stage':'visual_ocr','evidence_ids':ids}
+    record(meta)
+    for e in batch.evidence:
+        apply(e,pages[e['id']],meta,batch.inputs[e['id']])
+    message = f'已取得 {len(pages)} 页转写结果'
+    if meta.get('cached'):
+        message += '（使用缓存）'
+    if len(pages)<batch.count:
+        message += f'，另有 {batch.count-len(pages)} 页图像准备失败'
+    return message, ''
+
+
+def enhance(evidence,docs,folder,progress,record=lambda meta:None,infer=None):
+    infer = infer or model.infer
+    pending = [e for e in evidence if e.get('method')=='Windows OCR' and e.get('image')]
+    for e in pending:
+        preserve_raw(e)
+    if not pending:
+        return
+    if os.getenv('AUDIT_VISUAL_OCR','on').lower() in ('off','0','false'):
+        for e in pending:
+            unavailable(e,'视觉转写未启用，请人工核对原图')
+        return
+    bydoc = {d['id']:d for d in docs}
+    workers = 1 if os.getenv('AUDIT_VISUAL_WORKERS')=='1' else 2
+    total = len(pending)
+    start = completed = 0
+    blocked = ''
+    active = {}
+    timeout = int(os.getenv('MODEL_TIMEOUT','600'))
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        while start<total or active:
+            while start<total and len(active)<workers and not blocked:
+                pages = pending[start:start+8]
+                batch = prepare_batch(pages,start,total,bydoc,folder)
+                start += batch.count
+                if not batch.evidence:
+                    completed += batch.count
+                    progress(completed,total,f'{batch.label} 图像准备失败，需对照原件')
+                    continue
+                job = pool.submit(infer,batch.prompt,SCHEMA,batch.images,timeout=timeout)
+                active[job] = batch
+                progress(completed,total,f'{batch.label} 已准备 {len(batch.images)} 张图，等待模型返回（{len(active)} 批处理中）')
+            if active:
+                done, _ = wait(active,return_when=FIRST_COMPLETED)
+                for job in done:
+                    batch = active.pop(job)
+                    message, reason = finish_batch(batch,job,record)
+                    blocked = blocked or reason
+                    completed += batch.count
+                    progress(completed,total,f'{batch.label} {message}；已处理 {completed}/{total} 页')
+            if blocked and start<total:
+                for e in pending[start:]:
+                    unavailable(e,blocked)
+                completed += total-start
+                progress(completed,total,f'第 {start+1}–{total} 页未执行：{blocked}')
+                start = total

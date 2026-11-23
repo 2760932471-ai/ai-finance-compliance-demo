@@ -1,5 +1,5 @@
 """V0.2 acceptance cases written before implementing the visual transcription stage."""
-import copy,tempfile,unittest
+import copy,json,tempfile,threading,unittest
 from pathlib import Path
 from unittest.mock import patch
 from PIL import Image
@@ -38,7 +38,7 @@ class RecognitionTests(unittest.TestCase):
         evidence=[{'id':f'E{i}','method':'Windows OCR','image':'preview','document_id':'D'} for i in range(9)]
         doc={'id':'D'}
         progress=[]
-        with tempfile.TemporaryDirectory() as folder, patch.dict('os.environ',{'AUDIT_VISUAL_OCR':'on'}), patch.object(recognition,'image_inputs',return_value=(['full','bottom'],[{'region':[]},{'region':[]}])):
+        with tempfile.TemporaryDirectory() as folder, patch.dict('os.environ',{'AUDIT_VISUAL_OCR':'on','AUDIT_VISUAL_WORKERS':'1'}), patch.object(recognition,'image_inputs',return_value=(['full','bottom'],[{'region':[]},{'region':[]}])):
             def infer(prompt, schema, images, timeout):
                 if len(images)==16:
                     raise RuntimeError('模型调用超时')
@@ -48,6 +48,31 @@ class RecognitionTests(unittest.TestCase):
         self.assertTrue(any(i==8 and '第 9–9 页' in m and '等待模型' in m for i,m in progress))
         self.assertIn('已取得 1 页',progress[-1][1])
         self.assertEqual(evidence[0]['recognition']['status'],'needs_review')
+
+    def test_two_model_batches_can_finish_out_of_order_without_mixing_evidence(self):
+        evidence=[{'id':f'E{i}','method':'Windows OCR','image':'preview','document_id':'D'} for i in range(17)]
+        first=threading.Event()
+        second_recorded=threading.Event()
+        records=[]
+        counts=[]
+        def infer(prompt,schema,images,timeout):
+            entries=json.loads(prompt.split('证据与附图顺序：')[-1])
+            ids=[row['id'] for row in entries]
+            if ids[0]=='E0':
+                first.set()
+                if not second_recorded.wait(3): raise RuntimeError('未实现并行识别')
+            elif ids[0]=='E8':
+                if not first.wait(3): raise RuntimeError('未启动第一批')
+            return {'pages':[self.page(id=i,text='文字'+i) for i in reversed(ids)]},{'job_id':ids[0]}
+        def record(meta):
+            records.append(meta)
+            if meta.get('job_id')=='E8': second_recorded.set()
+        with tempfile.TemporaryDirectory() as folder, patch.dict('os.environ',{'AUDIT_VISUAL_OCR':'on','AUDIT_VISUAL_WORKERS':'2'}), patch.object(recognition,'image_inputs',return_value=(['full','bottom'],[{'region':[]},{'region':[]}])):
+            recognition.enhance(evidence,[{'id':'D'}],Path(folder),lambda i,n,m:counts.append(i),record,infer)
+        self.assertEqual(records[0]['job_id'],'E8')
+        self.assertEqual([e['text'] for e in evidence],['文字E'+str(i) for i in range(17)])
+        self.assertEqual(counts,sorted(counts))
+        self.assertEqual(counts[-1],17)
 
     def test_model_prompt_carries_uncertainty(self):
         e={'id':'D001-P1','name':'photo.jpg','page':1,'category':'现场照片','method':'AI视觉转写','text':'[看不清]','error':'','image':'yes','recognition':{'status':'partial','uncertain_regions':['日期模糊']}}

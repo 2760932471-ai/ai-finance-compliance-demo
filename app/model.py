@@ -3,7 +3,7 @@ import hashlib,json, os, shutil, subprocess, sys, threading, time
 from pathlib import Path
 from .store import DATA, uid, now
 
-LOCK=threading.Lock()
+MODEL_SLOTS=threading.BoundedSemaphore(2)
 
 def executable():
     if os.getenv('AUDIT_CODEX_PATH'): return os.getenv('AUDIT_CODEX_PATH')
@@ -37,7 +37,7 @@ def infer(prompt,schema,images=(),timeout=480,force=False):
     for image in images:cmd+=['--image',str(image)]
     cmd+=['-']
     started=time.time()
-    with LOCK:
+    with MODEL_SLOTS:
         try:
             p=subprocess.run(cmd,input=prompt,capture_output=True,text=True,encoding='utf-8',errors='replace',timeout=timeout,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
         except subprocess.TimeoutExpired:
@@ -61,7 +61,13 @@ def infer(prompt,schema,images=(),timeout=480,force=False):
         raise RuntimeError(reason+'；运行编号 '+task.name)
     try:
         value=json.loads(op.read_text(encoding='utf-8'))
-        cached.write_text(json.dumps({'value':value,'meta':meta},ensure_ascii=False),encoding='utf-8')
+        # A reader must see a complete response even when identical calls overlap.
+        temp_cache = cached.with_suffix('.'+task.name+'.tmp')
+        try:
+            temp_cache.write_text(json.dumps({'value':value,'meta':meta},ensure_ascii=False),encoding='utf-8')
+            os.replace(temp_cache,cached)
+        finally:
+            temp_cache.unlink(missing_ok=True)
         return value,meta
     except ValueError:raise RuntimeError('模型返回不符合JSON结构，请重试')
 

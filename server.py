@@ -12,7 +12,7 @@ if (ROOT/'.env').exists():
     for line in (ROOT/'.env').read_text(encoding='utf-8-sig').splitlines():
         if '=' in line and not line.lstrip().startswith('#'):
             key,val=line.split('=',1)
-            if key.strip() in ('AUDIT_AI','AUDIT_CODEX_PATH','PORT','MODEL_TIMEOUT','AUDIT_CACHE','AUDIT_JEV','TYPESAFE_API_KEY','JEV_MODEL','JEV_CONFIDENCE','AUDIT_VISUAL_OCR','AUDIT_DECISION_PROVIDER','AUDIT_DECISION_MODE','DECISION_CONFIDENCE','STARTLUX_ENDPOINT','STARTLUX_MODEL','STARTLUX_API_KEY','STARTLUX_IMAGES','STARTLUX_REVISION','DECISION_TIMEOUT','DECISION_SCOPE','AUDIT_PDF_FONT'):os.environ.setdefault(key.strip(),val.strip().strip('"'))
+            if key.strip() in ('AUDIT_AI','AUDIT_CODEX_PATH','PORT','MODEL_TIMEOUT','AUDIT_CACHE','AUDIT_VISUAL_WORKERS','AUDIT_JEV','TYPESAFE_API_KEY','JEV_MODEL','JEV_CONFIDENCE','AUDIT_VISUAL_OCR','AUDIT_DECISION_PROVIDER','AUDIT_DECISION_MODE','DECISION_CONFIDENCE','STARTLUX_ENDPOINT','STARTLUX_MODEL','STARTLUX_API_KEY','STARTLUX_IMAGES','STARTLUX_REVISION','DECISION_TIMEOUT','DECISION_SCOPE','AUDIT_PDF_FONT'):os.environ.setdefault(key.strip(),val.strip().strip('"'))
 TOKEN=secrets.token_urlsafe(32)
 POOL=concurrent.futures.ThreadPoolExecutor(max_workers=1)
 RUN_LOCK=threading.RLock()
