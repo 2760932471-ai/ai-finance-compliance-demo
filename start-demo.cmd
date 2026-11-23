@@ -3,8 +3,8 @@ setlocal
 cd /d "%~dp0"
 where py >nul 2>nul
 if %errorlevel% equ 0 (
-  py -3 bootstrap.py
+  py -3 bootstrap.py %*
 ) else (
-  python bootstrap.py
+  python bootstrap.py %*
 )
 if errorlevel 1 pause

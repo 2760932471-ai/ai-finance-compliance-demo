@@ -28,7 +28,7 @@ def infer(prompt,schema,images=(),timeout=480,force=False):
     sp=task/'schema.json';op=task/'result.json'
     sp.write_text(json.dumps(schema,ensure_ascii=False),encoding='utf-8')
     (task/'input.txt').write_text(prompt,encoding='utf-8')
-    cmd=[executable(),'exec','--ignore-user-config','--ephemeral','--sandbox','read-only','--skip-git-repo-check',
+    cmd=[executable(),'exec','--ephemeral','--sandbox','read-only','--skip-git-repo-check',
          '-c','features.shell_tool=false','-c','features.multi_agent=false','-c','web_search="disabled"',
          '--json','--output-schema',str(sp),'--output-last-message',str(op),'--cd',str(task)]
     for image in images:cmd+=['--image',str(image)]
@@ -91,7 +91,7 @@ def diagnostic(check_login=False):
     result={'offline':offline,'executable_found':found,'login':'未检测','inference':'尚未验证',
         'status':'离线演示：主模型未启用' if offline else '已找到Codex：推理待验证' if found else '未找到Codex CLI',
         'explanation':'当前使用本机Codex CLI访问配置的模型服务，并非已部署离线大模型。',
-        'steps':['安装Codex CLI并执行 codex login','运行 python bootstrap.py --live','在审核能力页检测登录，再用不含敏感信息的测试材料验证推理'],
+        'steps':['安装Codex CLI并执行 codex login','运行 python3 bootstrap.py（默认启用AI）','在审核能力页检测登录，再用不含敏感信息的测试材料验证推理'],
         'checked_at':now()}
     if check_login and found:
         try:

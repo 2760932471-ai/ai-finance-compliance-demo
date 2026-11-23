@@ -38,6 +38,14 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(self.call('/api/upload',b'not zip')[0],400);self.assertFalse(store.all_items('project'))
     def test_upload_queued_not_passed(self):
         code,r=self.call('/api/upload',self.zip());self.assertEqual(code,201);self.assertEqual(r['status'],'queued');self.assertFalse(r['summary']['complete'])
+    def test_repeated_uploads_reuse_selected_project(self):
+        _,first=self.call('/api/upload',self.zip(),headers={'X-Project-Name':'Existing project'})
+        _,second=self.call('/api/upload',self.zip(),headers={'X-Project-Id':first['project_id']})
+        self.assertNotEqual(first['id'],second['id'])
+        self.assertEqual(first['project_id'],second['project_id'])
+        self.assertEqual(len(store.all_items('project')),1)
+        self.assertEqual(len(store.all_items('run')),2)
+
     def test_correction_preserves_source_and_creates_new_version(self):
         run=self.seed_run();code,r=self.call('/api/runs/'+run['id']+'/correct',{'evidence_id':'D001-P1','text':'已校正内容','reason':'对照原件确认识别错误','actor':'测试校正人'})
         self.assertEqual(code,201);new=store.get('run',r['id']);self.assertEqual(new['parent_run'],run['id']);self.assertEqual(new['corrections'][0]['original_text'],'原识别内容');self.assertEqual(store.get('run',run['id'])['evidence'][0]['text'],'原识别内容')
