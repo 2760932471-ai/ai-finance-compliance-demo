@@ -114,7 +114,7 @@ def process(run_id):
         run['recognition_version']=recognition.VERSION
         run['recognition_usage']=[]
         def visual_progress(i,n,message):
-            update(run,'视觉识别',42+int(i/max(1,n)*3),f'正在对照原图转写文字 {i}/{n} 页')
+            update(run,'视觉识别',42+int(i/max(1,n)*3),message)
         def visual_record(meta):
             run['recognition_usage'].append(meta);run['usage'].append(meta);store.put('run',run)
         recognition.enhance(es,docs,folder,visual_progress,visual_record)

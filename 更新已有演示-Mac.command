@@ -16,7 +16,7 @@ if [ ! -f "$target_dir/start-demo.sh" ] || [ ! -f "$target_dir/app/model.py" ] |
     exit 1
 fi
 backup=$(mktemp -d "$target_dir/.mac-update-backup.XXXXXX")
-for item in app/model.py app/mac_codex.py server.py static/app.js static/style.css launch.py start-demo.sh README.md 启动财务审核-Mac.command; do
+for item in app/engine.py app/recognition.py app/model.py app/mac_codex.py server.py static/app.js static/style.css launch.py start-demo.sh README.md 启动财务审核-Mac.command; do
     mkdir -p "$backup/$(dirname "$item")"
     if [ -f "$target_dir/$item" ]; then cp -p "$target_dir/$item" "$backup/$item"; fi
     cp -p "$source_dir/$item" "$target_dir/$item.new"

@@ -75,10 +75,14 @@ def enhance(evidence,docs,folder,progress,record=lambda meta:None,infer=None):
     bydoc={d['id']:d for d in docs};batch_size=8;blocked=''
     for start in range(0,len(pending),batch_size):
         batch=pending[start:start+batch_size]
-        progress(start,len(pending),'视觉核对文字')
+        end = start + len(batch)
+        total = len(pending)
+        label = f'第 {start+1}–{end} 页（共 {total} 页）'
         if blocked:
             for e in batch:unavailable(e,blocked)
+            progress(end,total,f'{label} 转写未执行：{blocked}')
             continue
+        progress(start,total,f'{label} 正在准备原图')
         entries=[];images=[];inputs={};eligible=[]
         for e in batch:
             try:
@@ -86,15 +90,24 @@ def enhance(evidence,docs,folder,progress,record=lambda meta:None,infer=None):
                 entries.append({'id':e['id'],'images':[{'sequence':len(images)+i+1,'region':v['region']} for i,v in enumerate(info)]})
                 images.extend(paths);inputs[e['id']]=info;eligible.append(e)
             except Exception:unavailable(e,'无法生成高分辨率识别图，请核对原文件')
-        if not eligible:continue
+        if not eligible:
+            progress(end,total,f'{label} 图像准备失败，需对照原件')
+            continue
+        progress(start,total,f'{label} 已准备 {len(images)} 张图，等待模型返回')
         try:
             value,meta=infer(PROMPT+'\n证据与附图顺序：'+json.dumps(entries,ensure_ascii=False),SCHEMA,images,timeout=int(os.getenv('MODEL_TIMEOUT','600')))
             pages=validate(value,[e['id'] for e in eligible]);lookup={p['id']:p for p in pages}
             meta={**meta,'stage':'visual_ocr','evidence_ids':[e['id'] for e in eligible]};record(meta)
             for e in eligible:apply(e,lookup[e['id']],meta,inputs[e['id']])
+            message = f'{label} 已取得 {len(pages)} 页转写结果'
+            if meta.get('cached'):
+                message += '（使用缓存）'
+            if len(eligible) < len(batch):
+                message += f'，另有 {len(batch)-len(eligible)} 页图像准备失败'
         except Exception as exc:
             reason='视觉转写未完成：'+str(exc)[:220]
+            message = f'{label} {reason}'
             record({'stage':'visual_ocr','error':reason,'evidence_ids':[e['id'] for e in eligible]})
             for e in eligible:unavailable(e,reason)
             if any(word in reason for word in ('用量受限','登录失效','未找到可用','配置不兼容')):blocked=reason
-        progress(min(start+batch_size,len(pending)),len(pending),'视觉核对文字')
+        progress(end,total,message)

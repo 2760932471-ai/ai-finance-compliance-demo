@@ -44,8 +44,14 @@ function fileView(){return state.file?`<div class="file-row"><span class="file-i
 function choose(file){if(!file)return;if(!file.name.toLowerCase().endsWith('.zip'))return toast('请上传原始ZIP压缩包');if(file.size>160*1048576)return toast('文件超过160MB限制');state.file=file;$('#chosen-file').innerHTML=fileView()}
 async function openRun(id){state.run=await api('/runs/'+id);state.selectedEvidence=state.run.evidence?.[0]?.id||'';state.selectedRule='';state.workspaceTab='审核结果';state.group='全部';state.filter='问题';await navigate('workspace');history.replaceState(null,'','#run/'+id)}
 function projectName(){return state.projects.find(p=>p.id===state.run?.project_id)?.name||'费用审核项目'}
+function runWaitTime(r){
+    if(r.phase!=='视觉识别'||!r.events?.length)return '';
+    const seconds=Math.max(0,Math.floor((Date.now()-Date.parse(r.events.at(-1).time))/1000));
+    if(!Number.isFinite(seconds))return '';
+    return ` · 距此更新 ${Math.floor(seconds/60)} 分 ${seconds%60} 秒`;
+}
 function renderRun(){const r=state.run,active=['processing','queued'].includes(r.status),s=r.summary,es=r.evidence||[];let html=title(esc(projectName()),`<span class="mono">${r.id}</span> · ${esc(r.rule_version||'T1-2026.10-v1')} · ${date(r.created_at)}`,btn('新建审核','new','')+btn('项目记录','project-history','')+(!active?btn('纳入风险筛查','capture-facts','')+btn('导出 PDF / HTML','report','primary'):''));
-if(active){html+=`<section class="panel panel-pad"><div style="display:flex;justify-content:space-between;align-items:center"><div><span class="tiny muted">正在处理</span><h2 style="font-size:22px;margin:10px 0">${esc(r.phase)}</h2></div><strong style="font-size:28px;color:var(--teal)">${r.progress}%</strong></div><div class="progress-track"><i style="width:${r.progress}%"></i></div><p class="tiny muted">${esc(r.events?.at(-1)?.message||'等待处理材料包')}</p><details><summary class="tiny muted">查看处理过程</summary><div class="event-log">${(r.events||[]).map(e=>`${date(e.time)}　${esc(e.message)}`).join('<br>')}</div></details></section>`}
+if(active){const keepLogOpen=$('#run-progress-log')?.dataset.run===r.id && $('#run-progress-log').open;html+=`<section class="panel panel-pad"><div style="display:flex;justify-content:space-between;align-items:center"><div><span class="tiny muted">正在处理</span><h2 style="font-size:22px;margin:10px 0">${esc(r.phase)}</h2></div><strong style="font-size:28px;color:var(--teal)">${r.progress}%</strong></div><div class="progress-track"><i style="width:${r.progress}%"></i></div><p class="tiny muted">${esc(r.events?.at(-1)?.message||'等待处理材料包')}${runWaitTime(r)}</p><p class="tiny muted" id="poll-error" role="status"></p><details id="run-progress-log" data-run="${esc(r.id)}" ${keepLogOpen?'open':''}><summary class="tiny muted">查看处理过程</summary><div class="event-log">${(r.events||[]).map(e=>`${date(e.time)}　${esc(e.message)}`).join('<br>')}</div></details></section>`}
 else {html+=`<section class="status-banner ${statusClass(s.verdict)}"><span class="status-icon">${s.verdict==='通过'?'✓':s.verdict==='不通过'?'!':'◷'}</span><div><h2>${s.verdict} <span class="badge">${r.confirmed_at?'已人工确认':'待人工复核'}</span></h2><p>${s.blockers?`存在 ${s.blockers} 项P0阻断问题，请优先核实。`:s.counts['不通过']?`已发现 ${s.counts['不通过']} 条不满足要求的审核项。`:'查看待判断事项，核实材料与审核依据。'}${!s.complete?' 部分技术项尚未完成，请重试或逐项复核。':''}</p></div><div class="actions">${btn('补充材料','supplement','small')}${btn('重新识别并审核','retry','small')}${btn('确认复核','confirm','small')}</div></section>`}
 if(r.error)html+=`<div class="error-box">${esc(r.error)}</div>`;
 html+=`<div class="metrics">${metric('审核通过',s.counts['通过'],'green','项')}${metric('不通过',s.counts['不通过'],'red','项')}${metric('待人工判断',s.counts['待人工判断'],'amber','项')}${metric('材料与覆盖',r.documents?.length||0,'',`份 · ${s.total}/65项`)}</div><div class="workspace-tools"><div class="tabs">${['审核结果','材料与识别','过程与复核','执行校验'].map(t=>`<button class="tab ${state.workspaceTab===t?'active':''}" data-action="workspace-tab" data-value="${t}">${t}</button>`).join('')}</div><div class="actions">${btn('询问审核助手','chat','small')}${badge(r.parent_run?'补证 / 复审版本':'首次审核','code')}</div></div>`;
@@ -148,7 +154,25 @@ document.addEventListener('click',async e=>{const nav=e.target.closest('[data-na
 document.addEventListener('change',async e=>{const x=e.target;try{if(x.id==='project-select'){rememberProject(x.value);syncProjectFields()}if(x.id==='upload-input')choose(x.files[0]);if(x.id==='evidence-select'){state.selectedEvidence=x.value;renderRun()}if(x.id==='group-select'){state.group=x.value;renderRun()}if(x.id==='verdict-select'){state.filter=x.value;renderRun()}if(x.id==='k-file'&&x.files[0]){if(x.files[0].size>102400)return toast('文本文件请小于100KB');$('#k-text').value=await x.files[0].text();if(!$('#k-title').value)$('#k-title').value=x.files[0].name}}catch(err){toast(err.message)}});
 document.addEventListener('input',e=>{if(e.target.id==='project-search'){const q=e.target.value.toLowerCase();$('#project-rows').innerHTML=projectRows(state.projects.filter(p=>p.name.toLowerCase().includes(q)||p.id.includes(q)))}});
 async function boot(){$$('[data-icon]').forEach(e=>e.innerHTML=icon(e.dataset.icon));try{const b=await api('/bootstrap');state.token=b.token;state.capabilities=b;$('#engine-status').textContent=b.offline?'离线演示':b.model_available?'模型已配置 · 待推理验证':'模型环境待配置';$('#today').textContent=new Date().toLocaleDateString('zh-CN',{year:'numeric',month:'long',day:'numeric'});await Promise.all([refresh(),api('/rules').then(x=>state.rules=x),api('/knowledge').then(x=>state.knowledge=x)]);await restoreRoute()}catch(e){$('#content').innerHTML=`<div class="error-box">无法连接本地服务：${esc(e.message)}</div>`}}
-setInterval(async()=>{if(state.run&&['processing','queued'].includes(state.run.status)){try{state.run=await api('/runs/'+state.run.id);if(state.page==='workspace'&&!$('#modal').open)renderRun();if(!['processing','queued'].includes(state.run.status)){await refresh();toast('审核结果已保存，可开始复核')}}catch(e){/* Server restart keeps last visible state. */}}},3500);
+let pollingRun=false;
+setInterval(async()=>{
+    const id=state.run?.id;
+    if(pollingRun||!id||!['processing','queued'].includes(state.run.status))return;
+    pollingRun=true;
+    try{
+        const latest=await api('/runs/'+id);
+        if(state.run?.id!==id)return;
+        state.run=latest;
+        if(state.page==='workspace'&&!$('#modal').open)renderRun();
+        if(!['processing','queued'].includes(latest.status)){
+            await refresh();
+            toast(latest.status==='completed'?'审核结果已保存，可开始复核':'处理已结束，请查看处理记录');
+        }
+    }catch(e){
+        const notice=$('#poll-error');
+        if(state.run?.id===id && notice)notice.textContent='暂时无法读取最新进度。请保持启动窗口开启，页面将自动重连。';
+    }finally{pollingRun=false;}
+},3500);
 function mountCompliance(route){window.complianceController?.dispose();window.complianceController=window.FinanceCompliance.mount($('#compliance-host'),route,{token:state.token,navigate:openCompliance});}
 function openCompliance(route){const rules={models:'交叉核验策略',ontology:'财务本体'},ops={overview:'运营看板',risks:'风险研判',graph:'关联图谱',audit:'配置审计',tools:'能力工具'};if(rules[route]){state.rulesTab=rules[route];navigate('rules');}else{state.opsTab=ops[route]||'风险研判';navigate('ops');}}
 async function restoreRoute(){if(location.hash==='#knowledge'){state.rulesTab='知识库管理';await navigate('rules');return;}if(location.hash==='#graph'){state.opsTab='关联图谱';await navigate('ops');return;}if(location.hash==='#risk-models'){state.opsTab='风险模型与评测';state.labTab='风险模型';await navigate('ops');return;}const m=location.hash.match(/^#run\/([a-f0-9]{16})(?:\/evidence\/([A-Z0-9-]+))?$/);if(m){await openRun(m[1]);if(m[2]&&state.run.evidence.some(e=>e.id===m[2])){state.selectedEvidence=m[2];renderRun();history.replaceState(null,'','#run/'+m[1]+'/evidence/'+m[2]);}return;}await navigate(['workspace','projects','rules','ops'].includes(location.hash.slice(1))?location.hash.slice(1):'workspace');}

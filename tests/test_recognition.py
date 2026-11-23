@@ -34,6 +34,21 @@ class RecognitionTests(unittest.TestCase):
             self.assertEqual(source.read_bytes(),before);self.assertEqual(len(paths),2)
             self.assertEqual(records[0]['region'],[0,0,1,1]);self.assertEqual(records[1]['region'],[0,.65,1,1])
             self.assertTrue(all(Path(x).exists() for x in paths));self.assertTrue(all(len(x['sha256'])==64 for x in records))
+    def test_progress_distinguishes_failed_batch_from_next_model_wait(self):
+        evidence=[{'id':f'E{i}','method':'Windows OCR','image':'preview','document_id':'D'} for i in range(9)]
+        doc={'id':'D'}
+        progress=[]
+        with tempfile.TemporaryDirectory() as folder, patch.dict('os.environ',{'AUDIT_VISUAL_OCR':'on'}), patch.object(recognition,'image_inputs',return_value=(['full','bottom'],[{'region':[]},{'region':[]}])):
+            def infer(prompt, schema, images, timeout):
+                if len(images)==16:
+                    raise RuntimeError('模型调用超时')
+                return {'pages':[self.page(id='E8')]}, {}
+            recognition.enhance(evidence,[doc],Path(folder),lambda i,n,m:progress.append((i,m)),infer=infer)
+        self.assertTrue(any(i==8 and '模型调用超时' in m for i,m in progress))
+        self.assertTrue(any(i==8 and '第 9–9 页' in m and '等待模型' in m for i,m in progress))
+        self.assertIn('已取得 1 页',progress[-1][1])
+        self.assertEqual(evidence[0]['recognition']['status'],'needs_review')
+
     def test_model_prompt_carries_uncertainty(self):
         e={'id':'D001-P1','name':'photo.jpg','page':1,'category':'现场照片','method':'AI视觉转写','text':'[看不清]','error':'','image':'yes','recognition':{'status':'partial','uncertain_regions':['日期模糊']}}
         prompt=model.rule_prompt([], [e],[],{})
