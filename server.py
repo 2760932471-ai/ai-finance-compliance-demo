@@ -232,7 +232,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(engine.chat(run,question,body.get('rule_id','')))
         if p=='/api/projects/update':
             x=store.get('project',body['id']);x['name']=body.get('name',x['name'])[:100];x['archived']=bool(body.get('archived',x['archived']));return self.send(store.put('project',x))
-        if p=='/api/model/diagnostic':return self.send(model.diagnostic(check_login=True))
+        if p=='/api/model/diagnostic':return self.send(model.probe() if body.get('probe') is True else model.diagnostic(check_login=True))
         if p=='/api/knowledge/recall':return self.send(knowledge.retrieve(body.get('query'),body.get('top_k',6),body.get('method','bm25')))
         if p=='/api/knowledge/chunks':return self.send(knowledge.resegment(body['id'],body.get('config'),body.get('revision',1)))
         if p=='/api/knowledge':

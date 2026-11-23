@@ -5,6 +5,11 @@ import launch
 
 
 class LaunchTests(unittest.TestCase):
+    def setUp(self):
+        platform = patch('launch.sys.platform', 'linux')
+        platform.start()
+        self.addCleanup(platform.stop)
+
     def run_mode(self, args, diagnostic):
         service = Mock(server_port=8765)
         with patch.dict(os.environ, {'AUDIT_AI':'off'}, clear=False), patch('server.create_server', return_value=service) as create, patch('app.model.diagnostic', return_value=diagnostic) as check:

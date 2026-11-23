@@ -17,12 +17,14 @@
 
 需要 **Python 3.11+**。下载仓库 ZIP 后解压到可写目录；首次启动需要联网安装 Python 依赖（含 scikit-learn），之后结构化风险演示可离线运行。
 
+- **已有 Mac 项目**：先在原启动窗口按 Control+C，在新包中打开 `更新已有演示-Mac.command`，选择旧项目根目录。程序会在原位置更新并启动，保留数据与原始文件路径。
 - **Windows**：双击 `start-demo.cmd`（或 `启动系统.cmd`）。首次自动建立 `.venv` 并安装依赖。
-- **macOS / Linux**：终端执行 `sh start-demo.sh`。Linux 需要 Python venv 支持。
+- **macOS**：双击 `启动财务审核-Mac.command`，或沿用 `sh start-demo.sh`。启动器会寻找系统命令以及“应用程序”里的 Codex.app。如未找到，会按 Apple 芯片或 Intel 架构从官方 npm 包下载已固定版本的运行程序并校验 SHA-512。首次使用按浏览器提示登录可使用 Codex 的账号。
+- **Linux**：终端执行 `sh start-demo.sh`。Linux 需要 Python venv 支持。
 - 启动后自动打开 `http://127.0.0.1:8765`；保持终端窗口打开，按 Ctrl+C 停止。
 - 端口冲突时：`python bootstrap.py --port 8766`。
 
-启动器默认启用 **Codex AI 审核及原图识别**，使用本机 Codex CLI 的登录和模型配置，需要联网。启动时检查 CLI 和登录状态，检查失败会明确退出，不会静默退回离线模式。请先安装 Codex CLI 并执行 `codex login`；只有桌面客户端不一定已安装 CLI。显式离线演示可运行 `python3 bootstrap.py --offline`。
+启动器默认启用 **Codex AI 审核及原图识别**，使用本机 Codex CLI 的登录和模型配置，需要联网。启动时检查 CLI 和登录状态，检查失败会明确退出，不会静默退回离线模式。Windows 和 Linux 需要机器上已有 Codex 运行程序。Mac 会自动准备。打开“审核中心 → 审核能力 → 测试模型连接”可用随机测试码验证真实推理。显式离线演示可运行 `python3 bootstrap.py --offline`。
 
 上传默认沿用上次选择的有效项目（首次优先已有项目）。只有选择“＋ 新建项目”并填写名称才新建；同一项目可有多次审核记录，补证与重新审核保留原项目。旧版离线结果不会自动改写，启用 AI 后在结果页点击“重新识别并审核”。
 

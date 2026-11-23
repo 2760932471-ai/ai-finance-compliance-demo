@@ -1,9 +1,24 @@
 """Start the local service with the user's Codex CLI; offline is opt-in."""
 import argparse
 import os
+import subprocess
 import sys
 import threading
 import webbrowser
+
+
+def prepare_mac_model(model):
+    from app import mac_codex
+    executable = model.executable()
+    try:
+        if not executable:
+            executable = mac_codex.provision()
+        os.environ['AUDIT_CODEX_PATH'] = executable
+        if model.diagnostic(check_login=True)['login'] != '已登录':
+            print('正在打开 Codex 官方登录。请在浏览器中使用有 Codex 访问权限的账号登录，完成后回到这里。', flush=True)
+            subprocess.run([executable, 'login'], check=True, timeout=600)
+    except (OSError, ValueError, subprocess.SubprocessError) as exc:
+        raise SystemExit(f'Mac 模型组件准备失败，请检查联网状态和上方提示后重新启动。{exc}') from None
 
 
 def main(argv=None):
@@ -24,6 +39,8 @@ def main(argv=None):
     from server import create_server
     from app import model
     if not args.offline:
+        if sys.platform == 'darwin':
+            prepare_mac_model(model)
         diagnostic = model.diagnostic(check_login=True)
         if not diagnostic['executable_found']:
             raise SystemExit('未找到 Codex CLI。请安装 Codex CLI，执行 codex login 后重新启动。\n如已安装，请在 .env 中设置 AUDIT_CODEX_PATH 为可执行文件的完整路径。')

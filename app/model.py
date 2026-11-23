@@ -1,5 +1,5 @@
 """Real Codex CLI inference, no fixture answers and no embedded credentials."""
-import hashlib,json, os, shutil, subprocess, threading, time
+import hashlib,json, os, shutil, subprocess, sys, threading, time
 from pathlib import Path
 from .store import DATA, uid, now
 
@@ -9,6 +9,9 @@ def executable():
     if os.getenv('AUDIT_CODEX_PATH'): return os.getenv('AUDIT_CODEX_PATH')
     found=shutil.which('codex') or shutil.which('codex.exe')
     if found:return found
+    if sys.platform=='darwin':
+        from .mac_codex import find_existing
+        return find_existing()
     base=Path(os.getenv('LOCALAPPDATA',str(Path.home()/'AppData/Local')))/'OpenAI/Codex/bin'
     candidates=sorted(base.glob('*/codex.exe'),key=lambda p:p.stat().st_mtime,reverse=True) if base.exists() else []
     return str(candidates[0]) if candidates else ''
@@ -52,7 +55,7 @@ def infer(prompt,schema,images=(),timeout=480,force=False):
         # Raw service logs can contain account details; never expose them in UI.
         log=(p.stderr+'\n'+p.stdout).lower()
         reason='模型服务未返回有效结果'
-        for needle,label in [('error loading config','模型启动配置不兼容'),('usage limit','模型账户用量受限'),('401','模型登录失效'),('connection','模型网络连接失败'),('invalid schema','模型输出约束不兼容'),('too many images','单次附图超出限制')]:
+        for needle,label in [('read-only file system','模型运行目录只读'),('unexpected argument','Codex 版本不支持所需参数'),('error loading config','模型启动配置不兼容'),('usage limit','模型账户用量受限'),('401','模型登录失效'),('connection','模型网络连接失败'),('invalid schema','模型输出约束不兼容'),('too many images','单次附图超出限制')]:
             if needle in log:reason=label;break
         meta['error']=reason;(task/'meta.json').write_text(json.dumps(meta,ensure_ascii=False),encoding='utf-8')
         raise RuntimeError(reason+'；运行编号 '+task.name)
@@ -91,11 +94,27 @@ def diagnostic(check_login=False):
     result={'offline':offline,'executable_found':found,'login':'未检测','inference':'尚未验证',
         'status':'离线演示：主模型未启用' if offline else '已找到Codex：推理待验证' if found else '未找到Codex CLI',
         'explanation':'当前使用本机Codex CLI访问配置的模型服务，并非已部署离线大模型。',
-        'steps':['安装Codex CLI并执行 codex login','运行 python3 bootstrap.py（默认启用AI）','在审核能力页检测登录，再用不含敏感信息的测试材料验证推理'],
+        'steps':['Mac 可直接运行启动脚本，并按提示完成账号登录','运行 python3 bootstrap.py（默认启用AI）','在审核能力页检测登录，再用不含敏感信息的测试材料验证推理'],
         'checked_at':now()}
     if check_login and found:
         try:
             p=subprocess.run([exe,'login','status'],capture_output=True,text=True,timeout=10,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
             result['login']='已登录' if p.returncode==0 else '未登录或登录检查失败'
         except (OSError,subprocess.TimeoutExpired):result['login']='登录检查未完成'
+    return result
+
+
+def probe():
+    result = diagnostic(check_login=True)
+    if result['offline'] or result['login'] != '已登录':
+        result['inference'] = '未执行'
+        return result
+    code = uid()
+    try:
+        response, _ = infer(f'请原样返回测试码 {code}，填入 code 字段。', object_schema({'code': TEXT}), timeout=60, force=True)
+        result['inference'] = '真实推理通过' if response == {'code': code} else '模型回答与测试码不符'
+        if result['inference'] == '真实推理通过':
+            result['status'] = 'Codex 模型已响应'
+    except (OSError, RuntimeError, ValueError) as exc:
+        result['inference'] = str(exc) if isinstance(exc, RuntimeError) else '模型连接或输出异常'
     return result
