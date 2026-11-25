@@ -101,7 +101,7 @@
       "category": "现场凭证",
       "confirmed": false,
       "evidence_id": "D001-P1",
-      "id": "509ba676f46b487a",
+      "id": "535ae5f69b4e4925",
       "label": "现场载具编号",
       "locator": {
         "clause": "字符 1–22",
@@ -115,7 +115,7 @@
       "category": "登记记录",
       "confirmed": false,
       "evidence_id": "D002-P1",
-      "id": "0e648d51c1d541ae",
+      "id": "7dc653e07c3e4ad5",
       "label": "登记载具编号",
       "locator": {
         "clause": "字符 1–32",
@@ -129,7 +129,7 @@
       "category": "登记记录",
       "confirmed": false,
       "evidence_id": "D002-P1",
-      "id": "cb88c8d1309a46b2",
+      "id": "2205c48792d943a4",
       "label": "登记单位",
       "locator": {
         "clause": "字符 1–32",
@@ -140,12 +140,12 @@
       "value": "示例运输公司"
     }
   ],
-  "id": "b893126b0c984bd7",
+  "id": "d8b9ba285d52410f",
   "knowledge_sources": [
     {
-      "chunk_id": "14fb0583c9eef332",
+      "chunk_id": "e7ce47321ae967f8",
       "end": 39,
-      "id": "9c78f4482bee4131",
+      "id": "f50e1f095d04408d",
       "line": 1,
       "source": "内置虚构业务手册",
       "start": 0,
@@ -154,7 +154,7 @@
     }
   ],
   "project": {
-    "id": "67bc35fe76d84203",
+    "id": "9c025b68956a4236",
     "name": "虚构样例 · 载具资料核对"
   },
   "results": [
@@ -215,15 +215,15 @@
   "reviews": [],
   "run": {
     "app_version": "0.8",
-    "business_id": "BUS-933a6e087ddf459d",
+    "business_id": "BUS-e63dd93620f34223",
     "confirmed_at": "",
     "confirmed_by": "",
-    "created_at": "2026-11-25T17:40:38+08:00",
-    "id": "933a6e087ddf459d",
+    "created_at": "2026-11-25T18:39:13+08:00",
+    "id": "e63dd93620f34223",
     "parent_run": "",
-    "project_id": "67bc35fe76d84203",
+    "project_id": "9c025b68956a4236",
     "rule_version": "carrier@1",
-    "source_hash": "efd618b8629f7b00c939d78fe0f48ad791771e6419cd3faeb8071b20ff1a7738",
+    "source_hash": "9af67f862fd23186ebf9b3890aa3f7f19eaa6c4b82ec8cb6c3c16395d3209a5c",
     "status": "needs_attention"
   },
   "schema_version": "audit-report-v2",
@@ -298,13 +298,13 @@
   },
   "technical_checks": {
     "calendar": [],
-    "checked_at": "2026-11-25T17:40:38+08:00",
+    "checked_at": "2026-11-25T18:39:13+08:00",
     "note": "仅核对识别文字的公历一致性与原图元数据；尺寸相同、缺EXIF或水印匹配均不能单独认定真伪。",
     "photo_metadata": [],
     "repeated_sizes": [],
     "version": "local-evidence-checks-v1"
   },
-  "time": "2026-11-25T17:40:38+08:00",
+  "time": "2026-11-25T18:39:13+08:00",
   "trace": {
     "corrections": [],
     "decision_review": {
@@ -318,7 +318,7 @@
       "target_count": 3,
       "threshold": 0.8,
       "threshold_calibrated": false,
-      "time": "2026-11-25T17:40:38+08:00",
+      "time": "2026-11-25T18:39:13+08:00",
       "total_rules": 3,
       "traces": [],
       "version": "decision-review-v1"
@@ -327,10 +327,10 @@
     "knowledge_snapshot": [
       {
         "bm25": 3.082308,
-        "chunk_id": "14fb0583c9eef332",
+        "chunk_id": "e7ce47321ae967f8",
         "cosine": 0.632713,
         "end": 39,
-        "id": "9c78f4482bee4131",
+        "id": "f50e1f095d04408d",
         "index": 1,
         "line": 1,
         "matched_terms": [
@@ -372,7 +372,7 @@
       }
     ],
     "quality": {
-      "checked_at": "2026-11-25T17:40:38+08:00",
+      "checked_at": "2026-11-25T18:39:13+08:00",
       "errors": {},
       "expected": 3,
       "extra_ids": [],
@@ -399,14 +399,14 @@
         },
         "evidence_count": 2,
         "group": "现场核验",
-        "id": "5119906474f94bd2",
-        "input_hash": "9483664f54a48ff9d847f985c2283f78961d367fd6861a84744a0b7b4a49a976",
+        "id": "95b8440175604da6",
+        "input_hash": "56e3c81d932a0d04b97ad8b9d4174c694b8a9f273243a6a9227b9993e7d5f729",
         "rule_ids": [
           "CAR-03"
         ],
         "seconds": 0.0,
         "status": "failed",
-        "time": "2026-11-25T17:40:38+08:00",
+        "time": "2026-11-25T18:39:13+08:00",
         "version": "audit-harness-v3"
       }
     ]

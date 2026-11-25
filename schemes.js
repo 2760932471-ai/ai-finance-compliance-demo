@@ -96,10 +96,12 @@ function editorRule(rule,idx,draft) {
     const options=(xs,key) => xs.map(([v,n])=>`<option value="${esc(v)}" ${v===key?'selected':''}>${esc(n)}</option>`).join('');
     const types = draft.material_types || [];
     return `<div class="scheme-rule-fields" data-rule-index="${idx}">
-    <div class="scheme-form-grid"><label>审核项编号<input data-r="id" value="${esc(rule.id)}"></label><label>审核项名称<input data-r="name" value="${esc(rule.name)}"></label><label>审核组编号<input data-r="group" value="${esc(rule.group)}"></label><label>审核组名称<input data-r="group_name" value="${esc(rule.group_name || rule.group)}"></label>
+    <div class="scheme-form-grid"><label>审核项编号<input data-r="id" value="${esc(rule.id)}" ${rule.provenance?.kind==="rule_extraction"?"readonly":""}></label><label>审核项名称<input data-r="name" value="${esc(rule.name)}"></label><label>审核组编号<input data-r="group" value="${esc(rule.group)}"></label><label>审核组名称<input data-r="group_name" value="${esc(rule.group_name || rule.group)}"></label>
     <label>风险等级<select data-r="risk">${options(['P0','P1','P2','未指定'].map(v=>[v,v]),rule.risk)}</select></label>
     <label>核验方式<select data-r="method">${options(Object.entries(schemeMethods),rule.method||'model')}</select></label></div>
+    ${rule.provenance?.kind==='rule_extraction'?`<details class="scheme-samples" open><summary>提炼来源 · ${esc(rule.provenance.filename)}</summary>${rule.provenance.sources.map(s=>`<figure class="extract-source"><figcaption>${esc(ruleSourceLocation(s.locator)||s.segment_id)}</figcaption><blockquote>${esc(s.quote)}</blockquote></figure>`).join('')}</details>`:''}
     <label>核验要求<textarea data-r="principle" rows="2">${esc(rule.principle)}</textarea></label>
+    ${rule.provenance?.kind==='rule_extraction'?`<div class="scheme-form-grid">${[['pass_condition','通过条件'],['fail_condition','不通过条件'],['manual_condition','转人工条件']].map(([k,label])=>`<label>${label}<textarea data-r="${k}" rows="2">${esc(rule[k]||'')}</textarea></label>`).join('')}</div>`:''}
     <label class="rule-field-names" ${!rule.method || rule.method==='model'?'hidden':''}>核验字段（每行一个）<textarea data-r="fields" rows="2">${esc((rule.fields || []).join('\n'))}</textarea></label>
     ${types.length ? `<fieldset><legend>限定适用材料（留空时核验整笔业务）</legend><div class="scheme-checks">${types.map(type=>`<label><input type="checkbox" data-r-apply value="${esc(type)}" ${rule.applies_to?.includes(type)?'checked':''}>${esc(type)}</label>`).join('')}</div></fieldset>` : ''}
     <div class="scheme-rule-actions"><label class="scheme-inline"><input type="checkbox" data-r="enabled" ${rule.enabled===false?'':'checked'}>参与审核</label><button type="button" class="btn small" data-cmd="remove-rule">移除此项</button></div></div>`;
@@ -129,6 +131,23 @@ function setupSchemeEditor(host, detail, knowledge) {
     let revision = cached?.revision ?? detail.revision;
     let dirty = !!cached, selected = 0, trialText = JSON.stringify(detail.sample_examples || [],null,2), samplesChanged=false, note='';
     const route='/schemes/'+encodeURIComponent(detail.id);
+    let busy=false;
+    const extraction=createRuleExtraction(detail.id,{
+        dirty:()=>dirty,busy:()=>busy,ids:()=>new Set(draft.rules.map(r=>r.id)),
+        async adopt(path,candidates){
+            if(dirty||busy)throw Error('请先保存草稿中已修改的内容。');
+            busy=true;host.inert=true;extraction.sync();
+            const before=new Set(draft.rules.map(rule=>rule.id));
+            try{
+                detail=await api(path,'POST',{revision,candidate_ids:candidates});
+                revision=detail.revision;draft=structuredClone(detail.draft);
+                selected=Math.max(0,draft.rules.findIndex(rule=>!before.has(rule.id)));
+                if(host.isConnected)paint();
+            }finally{
+                busy=false;host.inert=false;if(host.isConnected)syncButtons();
+            }
+        }
+    });
     const docs = (knowledge || []).filter(k => k.status==='published' || draft.knowledge_ids?.includes(k.id));
     function markDirty() {
         dirty=true;
@@ -136,6 +155,7 @@ function setupSchemeEditor(host, detail, knowledge) {
         syncButtons();
     }
     function syncButtons() {
+        extraction.sync();
         host.querySelector('[data-cmd="trial"]').disabled=dirty;
         host.querySelector('[data-cmd="publish"]').disabled=dirty || samplesChanged || !detail.trial?.passed || detail.trial.revision!==revision || (detail.published && detail.published.version===draft.version);
         host.querySelector('.scheme-save-state').textContent=dirty?'有未保存的修改':'草稿修订 '+revision;
@@ -147,18 +167,18 @@ function setupSchemeEditor(host, detail, knowledge) {
     }
     function paint() {
         const published=detail.published;
-        host.innerHTML=`<div class="scheme-stack"><section class="panel"><div class="panel-head"><div><h2>方案草稿</h2><p class="section-description">${published?'已发布 v'+esc(published.version)+' · 现有项目沿用创建时的版本。':'首次发布后，经办人即可选择该方案。'}</p></div><button class="btn small" data-cmd="copy">复制为新方案</button></div>
+        host.innerHTML=`<div class="scheme-stack"><div data-extraction-mount></div><section class="panel"><div class="panel-head"><div><h2>方案草稿</h2><p class="section-description">${published?'已发布 v'+esc(published.version)+' · 现有项目沿用创建时的版本。':'首次发布后，经办人即可选择该方案。'}</p></div><button class="btn small" data-cmd="copy">复制为新方案</button></div>
         <div class="panel-pad scheme-editor"><div class="scheme-form-grid"><label>方案名称<input maxlength="80" data-s="name" value="${esc(draft.name)}" required></label><label>报告标题<input data-s="report" value="${esc(draft.report?.title)}"></label></div>
         <label>适用范围<textarea data-s="scope" rows="2">${esc(draft.scope)}</textarea></label><label>材料类型（每行一个）<textarea data-s="material_types" rows="3">${esc((draft.material_types||[]).join('\n'))}</textarea></label>
         <fieldset><legend>绑定已发布知识</legend><p class="scheme-empty">留空时，审核可检索本方案的全部已发布知识。</p>${docs.length?`<div class="scheme-checks">${docs.map(k=>`<label><input type="checkbox" data-k value="${esc(k.id)}" ${draft.knowledge_ids?.includes(k.id)?'checked':''}>${esc(k.title)}</label>`).join('')}</div>`:'<p class="scheme-empty">当前场景暂无已发布知识。</p>'}</fieldset>
         <div class="scheme-row"><h3>审核项</h3><button class="btn small" data-cmd="add-rule">添加审核项</button></div><label>选择审核项<select id="scheme-rule-selector">${draft.rules.map((r,i)=>`<option value="${i}" ${i===selected?'selected':''}>${esc(r.id)} · ${esc(r.name)}${r.enabled===false?'（停用）':''}</option>`).join('')}</select></label>
-        <div id="scheme-rule-editor"></div><div class="scheme-row"><span class="scheme-save-state tiny muted"></span><button class="btn primary" data-cmd="save">保存草稿</button></div></div></section>
+        <div id="scheme-rule-editor"></div><div class="scheme-row"><div><span class="scheme-save-state tiny muted"></span> <button class="btn small" data-cmd="reload">读取服务器草稿</button></div><button class="btn primary" data-cmd="save">保存草稿</button></div></div></section>
         <section class="panel"><div class="panel-head"><div><h2>样本试跑与发布</h2><p class="section-description">对照样本的预期结论核验当前修订，核实差异后发布。</p></div></div><div class="panel-pad scheme-editor">
         <div class="scheme-row"><span class="tiny muted">可使用方案内置样本，也可添加业务核实过的样本。</span><button class="btn small" data-cmd="add-sample">添加标注样本</button></div><details class="scheme-samples"><summary>查看或编辑完整样本集</summary><label>样本 JSON<textarea data-trial rows="9" spellcheck="false">${esc(trialText)}</textarea></label></details>
         <div><button class="btn" data-cmd="trial">运行样本试跑</button></div>${trialSummary(detail.trial)}
         <label>发布说明<input data-note value="${esc(note)}" placeholder="记录本版调整的适用范围或规则"></label><div><button class="btn primary" data-cmd="publish">发布版本</button></div></div></section>
         <p role="status" class="scheme-message"></p></div>`;
-        updateRulePanel(); syncButtons();
+        extraction.mount(host.querySelector('[data-extraction-mount]'));updateRulePanel();syncButtons();
     }
     paint();
     host.addEventListener('input', e => {
@@ -184,7 +204,6 @@ function setupSchemeEditor(host, detail, knowledge) {
         if(e.target.id==='scheme-rule-selector'){selected=Number(e.target.value);updateRulePanel();}
         if(e.target.dataset.s==='material_types') updateRulePanel();
     });
-    let busy=false;
     host.addEventListener('click',async e=>{
         const button=e.target.closest('[data-cmd]');
         if (!button || busy) return;
@@ -199,6 +218,24 @@ function setupSchemeEditor(host, detail, knowledge) {
             draft.rules.splice(selected,1);selected=Math.min(selected,Math.max(0,draft.rules.length-1));markDirty();paint();return;
         }
         if(cmd==='copy'){copyScheme(draft);return;}
+        if(cmd==='reload'){
+            const replace=async()=>{
+                const latest=await api(route);
+                if(!host.isConnected)return;
+                detail=latest;draftCache.delete(detail.id);dirty=false;revision=latest.revision;
+                draft=structuredClone(detail.draft);selected=0;paint();toast('已读取最新草稿');
+            };
+            if(dirty){
+                modal('读取服务器草稿',`<p>此操作会以服务器草稿替换本页尚未保存的修改。</p><details><summary>查看并复制本地草稿</summary><pre class="ocr">${esc(JSON.stringify(draft,null,2))}</pre></details><p><button class="btn primary" id="replace-scheme-draft">放弃本页修改并读取</button></p>`);
+                document.getElementById('replace-scheme-draft').onclick=async()=>{
+                    try{await replace();$('#modal').close();}catch(error){toast(error.message);}
+                };
+            }else{
+                busy=true;host.inert=true;try{await replace();}catch(error){toast(error.message);}
+                finally{busy=false;host.inert=false;if(host.isConnected)syncButtons();}
+            }
+            return;
+        }
         if(cmd==='add-sample'){
             addSampleDialog(draft,sample=>{
                 let list;
@@ -230,7 +267,7 @@ function setupSchemeEditor(host, detail, knowledge) {
             }
             if(host.isConnected){paint();toast({save:'草稿已保存',trial:'样本试跑已完成',publish:'新版本已发布'}[cmd]);}
         }catch(error){if(host.isConnected){host.querySelector('.scheme-message').textContent=error.message;toast(error.message);}}
-        finally{busy=false;controls.forEach((el,i)=>{if(el.isConnected)el.disabled=previous[i];});}
+        finally{busy=false;controls.forEach((el,i)=>{if(el.isConnected)el.disabled=previous[i];});if(host.isConnected)syncButtons();}
     });
 }
 

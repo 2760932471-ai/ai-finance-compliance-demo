@@ -101,7 +101,7 @@
       "category": "标准模板",
       "confirmed": false,
       "evidence_id": "D001-P1",
-      "id": "41fa8eea6ec74b6c",
+      "id": "c2c6c633c2d4474e",
       "label": "模板付款起算条件",
       "locator": {
         "clause": "字符 1–24",
@@ -115,7 +115,7 @@
       "category": "待审合同",
       "confirmed": false,
       "evidence_id": "D002-P1",
-      "id": "7acf89ec6ed042c8",
+      "id": "b080e6606a4c454c",
       "label": "合同付款起算条件",
       "locator": {
         "clause": "字符 1–86",
@@ -129,7 +129,7 @@
       "category": "待审合同",
       "confirmed": false,
       "evidence_id": "D002-P1",
-      "id": "dd582ec39eb24fbe",
+      "id": "408d9e4f4333486f",
       "label": "甲方名称",
       "locator": {
         "clause": "字符 1–86",
@@ -143,7 +143,7 @@
       "category": "待审合同",
       "confirmed": false,
       "evidence_id": "D002-P1",
-      "id": "744345f582f6428d",
+      "id": "ebcbdd5f5d354201",
       "label": "乙方名称",
       "locator": {
         "clause": "字符 1–86",
@@ -154,12 +154,12 @@
       "value": "示例青禾设备有限公司"
     }
   ],
-  "id": "9f883cd1fe064a7a",
+  "id": "4624fd814a4c492c",
   "knowledge_sources": [
     {
-      "chunk_id": "94bc1da6c80b8ad2",
+      "chunk_id": "f13809c867798b4e",
       "end": 43,
-      "id": "ab6ed11c94b84ab9",
+      "id": "91c179fe89ef4a20",
       "line": 1,
       "source": "内置虚构业务手册",
       "start": 0,
@@ -168,7 +168,7 @@
     }
   ],
   "project": {
-    "id": "28b10fe207514a52",
+    "id": "b3bf0e3d39bc4cfd",
     "name": "虚构样例 · 采购合同核对"
   },
   "results": [
@@ -229,15 +229,15 @@
   "reviews": [],
   "run": {
     "app_version": "0.8",
-    "business_id": "BUS-ef89a1335343447b",
+    "business_id": "BUS-a951baf5562e4977",
     "confirmed_at": "",
     "confirmed_by": "",
-    "created_at": "2026-11-25T17:40:37+08:00",
-    "id": "ef89a1335343447b",
+    "created_at": "2026-11-25T18:39:13+08:00",
+    "id": "a951baf5562e4977",
     "parent_run": "",
-    "project_id": "28b10fe207514a52",
+    "project_id": "b3bf0e3d39bc4cfd",
     "rule_version": "contract@1",
-    "source_hash": "a1413ab16c17d710b3d56268d09a168c18081fa285363da865b0dc2441df14b8",
+    "source_hash": "654962238b9caf3ec017c9c3ed12cb02faa657394b6836a67c4ce6fa35c8e46c",
     "status": "needs_attention",
     "supervision_task": {
       "id": "HCD-0001",
@@ -318,13 +318,13 @@
   },
   "technical_checks": {
     "calendar": [],
-    "checked_at": "2026-11-25T17:40:37+08:00",
+    "checked_at": "2026-11-25T18:39:13+08:00",
     "note": "仅核对识别文字的公历一致性与原图元数据；尺寸相同、缺EXIF或水印匹配均不能单独认定真伪。",
     "photo_metadata": [],
     "repeated_sizes": [],
     "version": "local-evidence-checks-v1"
   },
-  "time": "2026-11-25T17:40:37+08:00",
+  "time": "2026-11-25T18:39:13+08:00",
   "trace": {
     "corrections": [],
     "decision_review": {
@@ -338,7 +338,7 @@
       "target_count": 3,
       "threshold": 0.8,
       "threshold_calibrated": false,
-      "time": "2026-11-25T17:40:37+08:00",
+      "time": "2026-11-25T18:39:13+08:00",
       "total_rules": 3,
       "traces": [],
       "version": "decision-review-v1"
@@ -347,10 +347,10 @@
     "knowledge_snapshot": [
       {
         "bm25": 2.424749,
-        "chunk_id": "94bc1da6c80b8ad2",
+        "chunk_id": "f13809c867798b4e",
         "cosine": 0.481566,
         "end": 43,
-        "id": "ab6ed11c94b84ab9",
+        "id": "91c179fe89ef4a20",
         "index": 1,
         "line": 1,
         "matched_terms": [
@@ -391,7 +391,7 @@
       }
     ],
     "quality": {
-      "checked_at": "2026-11-25T17:40:37+08:00",
+      "checked_at": "2026-11-25T18:39:13+08:00",
       "errors": {},
       "expected": 3,
       "extra_ids": [],
@@ -418,14 +418,14 @@
         },
         "evidence_count": 2,
         "group": "条款比对",
-        "id": "7488084c500a4621",
-        "input_hash": "9b0a6945d994887b1dcd6e0fc9643d4f8b655e1a72ae74f976168afabc734cd4",
+        "id": "671f1eb9eefc42a1",
+        "input_hash": "bd9573f085222de9cbdccf3756109aa8209322eb7d282347aa75577756446514",
         "rule_ids": [
           "CON-03"
         ],
         "seconds": 0.0,
         "status": "failed",
-        "time": "2026-11-25T17:40:37+08:00",
+        "time": "2026-11-25T18:39:13+08:00",
         "version": "audit-harness-v3"
       }
     ]

@@ -1068,13 +1068,13 @@
       "category": "辅助凭证",
       "confirmed": false,
       "evidence_id": "D001-P1",
-      "id": "ab9aef845f964b0f",
+      "id": "1ef868cbbd604d02",
       "label": "活动日期",
       "source": "自动提取",
       "value": "2026-07-08"
     }
   ],
-  "id": "4bce1416ac9b473f",
+  "id": "e18e75855fee42b7",
   "knowledge_sources": [
     {
       "chunk_id": "86c85caff4658556",
@@ -1148,7 +1148,7 @@
     }
   ],
   "project": {
-    "id": "22f25ff3213e4b4d",
+    "id": "7379e857475c4cbf",
     "name": "虚构样例 · 活动费用核对"
   },
   "results": [
@@ -2131,15 +2131,15 @@
   "reviews": [],
   "run": {
     "app_version": "0.8",
-    "business_id": "BUS-95d8e1d341774edd",
+    "business_id": "BUS-52a1d79b81c64a9b",
     "confirmed_at": "",
     "confirmed_by": "",
-    "created_at": "2026-11-25T17:40:38+08:00",
-    "id": "95d8e1d341774edd",
+    "created_at": "2026-11-25T18:39:13+08:00",
+    "id": "52a1d79b81c64a9b",
     "parent_run": "",
-    "project_id": "22f25ff3213e4b4d",
+    "project_id": "7379e857475c4cbf",
     "rule_version": "T1-2026.10-v1",
-    "source_hash": "d5c657fc43584b26c489b5b1684b609998e37a75d962fd6a4f42b0067f4ca7c4",
+    "source_hash": "211ed11c308d53f5ba6f2fd91a1817919d938b7adff09ed419b98fc7031bc8bc",
     "status": "needs_attention"
   },
   "schema_version": "audit-report-v2",
@@ -3025,13 +3025,13 @@
   },
   "technical_checks": {
     "calendar": [],
-    "checked_at": "2026-11-25T17:40:38+08:00",
+    "checked_at": "2026-11-25T18:39:13+08:00",
     "note": "仅核对识别文字的公历一致性与原图元数据；尺寸相同、缺EXIF或水印匹配均不能单独认定真伪。",
     "photo_metadata": [],
     "repeated_sizes": [],
     "version": "local-evidence-checks-v1"
   },
-  "time": "2026-11-25T17:40:38+08:00",
+  "time": "2026-11-25T18:39:13+08:00",
   "trace": {
     "corrections": [],
     "decision_review": {
@@ -3045,7 +3045,7 @@
       "target_count": 65,
       "threshold": 0.8,
       "threshold_calibrated": false,
-      "time": "2026-11-25T17:40:38+08:00",
+      "time": "2026-11-25T18:39:13+08:00",
       "total_rules": 65,
       "traces": [],
       "version": "decision-review-v1"
@@ -3630,7 +3630,7 @@
       }
     ],
     "quality": {
-      "checked_at": "2026-11-25T17:40:38+08:00",
+      "checked_at": "2026-11-25T18:39:13+08:00",
       "errors": {},
       "expected": 65,
       "extra_ids": [],
@@ -3721,7 +3721,7 @@
         },
         "evidence_count": 1,
         "group": "活动费用审核",
-        "id": "6e145a3a9f2d4cb7",
+        "id": "aa2be296970f435e",
         "input_hash": "74d9ddb411fdb88c00285d8add1dded588e10183053f33b2364a4bf06473c6bb",
         "rule_ids": [
           "T1-01-01",
@@ -3792,7 +3792,7 @@
         ],
         "seconds": 0.0,
         "status": "failed",
-        "time": "2026-11-25T17:40:38+08:00",
+        "time": "2026-11-25T18:39:13+08:00",
         "version": "audit-harness-v3"
       }
     ]

@@ -69,11 +69,17 @@
   let table;
   window.fetch = async (resource, options={}) => {
     const url = new URL(resource?.url || resource,location.href);
-    if(url.origin!==location.origin || !url.pathname.startsWith('/api/')) return nativeFetch(resource,options);
+    const method = (options.method || resource?.method || 'GET').toUpperCase();
+    const api = url.origin===location.origin && url.pathname.startsWith('/api/');
+    // A Pages preview must never forward a proposed upload to the host or a remote service.
+    if(!api) {
+      return ['GET','HEAD'].includes(method) ? nativeFetch(resource,options) : json({error:offline},403);
+    }
+    if(!['GET','POST'].includes(method) || (method==='POST' && typeof options.body!=='string'))
+      return json({error:offline},403);
     try {
       const data=await snapshot;
       if(!table) table=new Map(Object.entries(data.reads).map(([route,value])=>[key(new URL(route,site)),value]));
-      const method=(options.method || resource?.method || 'GET').toUpperCase();
       if(method==='GET' && table.has(key(url))) {
         const value=table.get(key(url));
         if(typeof value==='string') return new Response(value,{headers:{'Content-Type':'text/plain; charset=utf-8'}});
