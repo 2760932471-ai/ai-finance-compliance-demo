@@ -5,7 +5,7 @@ from pathlib import Path
 from urllib.parse import urlparse,unquote,parse_qs
 from compliance import api as compliance_api, supervision
 from compliance.store import Conflict, Store as ComplianceStore
-from app import schemes,casework,knowledge,store,engine,materials,model,report,jev,harness,evaluations,decisions,checks,security
+from app import extraction_jobs,schemes,casework,knowledge,store,engine,materials,model,report,jev,harness,evaluations,decisions,checks,security
 
 ROOT=Path(__file__).resolve().parent
 if (ROOT/'.env').exists():
@@ -110,6 +110,7 @@ def create_upload(raw,name,project_id='',parent_run='',corrections=None,*,scheme
         return run
 
 def seed():
+    extraction_jobs.recover()
     if not store.all_items('knowledge'):
         store.put('knowledge',{'id':'official-t1','title':'T1活动类审核标准 · 比赛原文','source':'2026年10月解决方案团队AI内部实战通知','version':'T1-2026.10-v1','status':'published','locked':True,'text':'\n'.join(r['id']+' '+r['name']+'：'+r['principle'] for r in engine.RULES),'created_at':store.now()})
     if os.getenv('AUDIT_AI')=='off' and not any(k['id']=='demo-procurement-policy' for k in store.all_items('knowledge')):
@@ -185,6 +186,9 @@ class Handler(BaseHTTPRequestHandler):
         if p=='/health':return self.send({'status':'ok','version':'0.8','mode':'integrated-local'})
         if p.startswith('/api/supervision/'):
             return supervision.read(self,p[len('/api/supervision'):],q)
+        extraction = extraction_jobs.ROUTE.fullmatch(p)
+        if extraction:
+            return extraction_jobs.handle(self,extraction)
         if p=='/api/schemes':return self.send(schemes.list_schemes())
         if p=='/api/schemes/manage':return self.send(schemes.manage_list())
         m=re.fullmatch(r'/api/schemes/([a-zA-Z0-9_-]+)',p)
@@ -246,6 +250,9 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):self.dispatch(True)
     def write(self):
         p=urlparse(self.path).path
+        extraction = extraction_jobs.ROUTE.fullmatch(p)
+        if extraction:
+            return extraction_jobs.handle(self,extraction)
         if p=='/api/upload':
             raw=self.body(materials.MAX_UPLOAD);name=unquote(self.headers.get('X-Project-Name',''));pid=self.headers.get('X-Project-Id','')
             raw=casework.wrap_material(raw,unquote(self.headers.get('X-Filename','')))

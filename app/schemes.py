@@ -198,7 +198,7 @@ def _validate(id, value):
 
 def _seed(id):
     scheme=copy.deepcopy(BASE.get(id))
-    return {'id':id,'draft':scheme,'revision':0,'versions':[scheme] if scheme else [],'trial':None}
+    return {'id':id,'draft':scheme,'revision':0,'versions':[copy.deepcopy(scheme)] if scheme else [],'trial':None}
 
 
 def _load(db,id):
@@ -262,15 +262,98 @@ def detail(id):
             'trial':r['trial'],'sample_examples':_examples(id)}
 
 
+def _save_draft(db, record, value, adopted=None):
+    draft = _validate(record['id'], value)
+    existing = {
+        rule['id']: rule['provenance']
+        for rule in (record['draft'] or {}).get('rules', [])
+        if 'provenance' in rule
+    }
+    for rule in draft['rules']:
+        rid = rule['id']
+        if adopted and rid in adopted:
+            rule['provenance'] = {**adopted[rid], 'original_rule': copy.deepcopy(rule)}
+        elif rid in existing:
+            # Trust the current database record even when the editor omits or alters this field.
+            rule['provenance'] = existing[rid]
+    draft['version'] = record['versions'][-1]['version'] + 1 if record['versions'] else 1
+    record.update(draft=draft, revision=record['revision'] + 1, trial=None)
+    _write(db, record)
+
+
 def save(id,body):
     _id(id)
     with store.connect() as db:
         db.execute('BEGIN IMMEDIATE')
         r=_load(db,id);_expected(r,body)
-        snap=_validate(id,body.get('draft'))
-        snap['version']=(r['versions'][-1]['version']+1) if r['versions'] else 1
-        r.update(draft=snap,revision=r['revision']+1,trial=None);_write(db,r)
+        _save_draft(db, r, body.get('draft'))
     return detail(id)
+
+
+def _citation_key(origin, rule_name):
+    # Original bytes and locations stay stable when a file is renamed and uploaded again.
+    return origin['sha256'].lower(), ''.join(rule_name.casefold().split()), tuple(sorted((s['locator'], s['quote']) for s in origin['sources']))
+
+
+def adopt_extracted(scheme_id, job_id, body):
+    """Append explicitly selected server-side candidates in one draft revision."""
+    _id(scheme_id)
+    _id(job_id)
+    with store.connect() as db:
+        db.execute('BEGIN IMMEDIATE')
+        record = _load(db, scheme_id)
+        _expected(record, body)
+        if not record['draft']:
+            raise ValueError('方案不存在')
+        ids = _strings(body.get('candidate_ids'), '候选规则', 200, 64)
+        if not ids:
+            raise ValueError('请至少选择一条候选规则')
+
+        row = db.execute("SELECT body FROM objects WHERE kind='rule_extraction' AND id=?", (job_id,)).fetchone()
+        job = json.loads(row[0]) if row else {}
+        if job.get('scheme_id') != scheme_id or job.get('id') != job_id:
+            raise ValueError('本方案中找不到该提炼记录')
+        if job.get('status') != 'completed':
+            raise ValueError('须先完成制度提炼再采用候选')
+        if not job.get('filename') or not re.fullmatch(r'[a-fA-F0-9]{64}', job.get('sha256') or ''):
+            raise ValueError('提炼记录缺少源文件标识，请重新提炼')
+
+        candidates = {item['id']: item for item in job['candidates']}
+        if not set(ids) <= candidates.keys():
+            raise ValueError('选择的规则不属于本次提炼')
+        draft = record['draft']
+        occupied = {rule['id'] for rule in draft['rules']}
+        cited = {_citation_key(r['provenance'], r['provenance']['original_rule']['name']) for r in draft['rules']
+                 if r.get('provenance', {}).get('kind') == 'rule_extraction'}
+        adopted = {}
+        for cid in ids:
+            candidate = candidates[cid]
+            rule = candidate['rule']
+            if rule.get('id') != cid:
+                raise ValueError('候选规则编号与提炼记录不符')
+            if cid in occupied:
+                raise ValueError('草稿中已存在审核项 ' + cid + '，请核对已采用的条款')
+            sources = candidate.get('sources')
+            fields = ('segment_id', 'name', 'locator', 'quote')
+            if not isinstance(sources, list) or not sources or any(
+                not isinstance(source, dict) or any(not isinstance(source.get(k), str) or not source[k].strip()
+                                                    for k in fields)
+                for source in sources
+            ):
+                raise ValueError('候选规则缺少可定位的制度原文，请重新提炼')
+            origin = {
+                'kind': 'rule_extraction', 'job_id': job_id, 'candidate_id': cid,
+                'filename': job['filename'], 'sha256': job['sha256'],
+                'sources': sources, 'questions': candidate.get('questions', []),
+            }
+            key = _citation_key(origin, rule['name'])
+            if key in cited:
+                raise ValueError('草稿中已采用同一文件的相同条款，请核对已有审核项')
+            cited.add(key)
+            adopted[cid] = origin
+            draft['rules'].append(rule)
+        _save_draft(db, record, draft, adopted)
+    return detail(scheme_id)
 
 
 def _sample_pages(sample):

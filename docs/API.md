@@ -79,3 +79,9 @@ POST `/api/compliance/capture` 接受 `{row,source_run,evidence_ids,actor,note,r
 - 以 `--summary-only` 启动的入口开放 `/`、`/health` 和 `/api/supervision/summary`。只返回聚合指标，拒绝全部明细与原件访问。业务端的写操作仍须有效的本机会话与同源请求。
 
 定向合同核验在上传时附带 `X-Supervision-Task` 核查单号。服务校验任务状态、项目组织和方案，并在运行中保存 `supervision_task` 问题与付款流水号。补证和重试继承此引用；责任人选择证据后提交核验反馈。
+
+### 制度提炼任务
+
+向 `POST /api/schemes/{scheme}/extractions` 提交单个文件字节，使用 URL 编码的 `X-Filename` 和本机会话令牌。返回 202 和任务编号。`GET` 同一路径可查任务列表，路径后追加 `/{job}` 可查进度、候选项、逐字引文和待澄清事项。追加 `/original` 可下载该任务的原件。任务不会自动发布规则。
+
+`POST /api/schemes/{scheme}/extractions/{job}/adopt` 接受 `revision` 和 `candidate_ids`，将选中项连同服务端保存的来源加入当前草稿，按原有流程试跑、发布。

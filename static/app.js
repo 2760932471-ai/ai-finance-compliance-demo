@@ -59,7 +59,7 @@ async function loadPinnedScope(project){
 function scopeSidebar(scheme){
     const rules=enabledRules(scheme),groups=ruleGroups(rules);
     const list=groups.map(g=>`<div class="rule-group-row"><span>${esc(g[1])}</span><span>${g[2]} 项</span></div>`).join('');
-    return `<section class="scope-panel"><div class="scope-heading">${icon('shield')}本次审核方案</div><h2>${esc(scheme.name)}</h2><p>${esc(scheme.scope)}</p>${rules.length?`<div class="scope-total"><b>${groups.length} 个审核组</b><span>${rules.length} 项已启用</span></div>${list}`:''}<div class="scope-version"><span class="dot"></span>已发布 <small>${esc(scheme.version)}</small></div></section>`;
+    return `<section class="scope-panel"><div class="scope-heading">${icon('shield')}本次审核方案</div><h2>${esc(scheme.name)}</h2><p>${esc(scheme.scope)}</p>${rules.length?`<div class="scope-total"><b>${groups.length} 个审核组</b><span>${rules.length} 项已启用</span></div>${list}`:''}<div class="scope-version"><span class="dot"></span>已发布 <small>${esc(scheme.version)}</small></div><a class="scope-extraction-link" href="#rule-extractions/${encodeURIComponent(scheme.id)}">从制度文件提炼审核规则 ↗</a></section>`;
 }
 function renderWorkspaceFormChange(){
     // Keep the selected file and input values when the project or scheme changes.
@@ -239,6 +239,11 @@ setInterval(async()=>{
 function mountCompliance(route){window.complianceController?.dispose();window.complianceController=window.FinanceCompliance.mount($('#compliance-host'),route,{token:state.token,navigate:openCompliance});}
 function openCompliance(route){const rules={models:'交叉核验策略',ontology:'财务本体'},ops={overview:'运营看板',risks:'风险研判',graph:'关联图谱',audit:'配置审计',tools:'能力工具'};if(rules[route]){state.rulesTab=rules[route];navigate('rules');}else{state.opsTab=ops[route]||'风险研判';navigate('ops');}}
 async function restoreRoute(){
+    const extraction=location.hash.match(/^#rule-extractions\/([a-zA-Z0-9_-]+)$/);
+    if(extraction){
+        state.selectedScheme=extraction[1];state.rulesTab='方案管理';await navigate('rules');
+        history.replaceState(null,'',extraction[0]);return;
+    }
     const taskRoute=location.hash.match(/^#workspace\/supervision\/([a-zA-Z0-9_-]+)$/);
     if(taskRoute){
         const [data]=await Promise.all([api('/supervision/state'),refresh()]);

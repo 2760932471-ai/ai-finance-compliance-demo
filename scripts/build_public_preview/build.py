@@ -130,6 +130,21 @@ class PublicSnapshots:
                     corpus.extend(chunk['chunks'])
             self.recall[sid] = corpus
 
+    def extraction_samples(self):
+        from rule_samples import SAMPLES, save_sample
+        for scheme_id in SAMPLES:
+            record = save_sample(scheme_id)
+            route = '/api/schemes/' + scheme_id + '/extractions'
+            history = self.capture(route)
+            if not any(item['id'] == record['id'] for item in history):
+                raise ValueError('Synthetic extraction is absent from its scheme history')
+            detail = self.capture(route + '/' + record['id'])
+            if not detail['candidates'] or detail.get('demo') is not True:
+                raise ValueError('Synthetic extraction must include labelled sample candidates')
+            original = self.attachment(route + '/' + record['id'] + '/original', 'txt')
+            if hashlib.sha256(original.read_bytes()).hexdigest() != detail['sha256']:
+                raise ValueError('The sample text differs from the extraction record')
+
     def sample_projects(self):
         fixtures = [
             ('contract', '虚构样例 · 采购合同核对', {
@@ -243,6 +258,7 @@ def assemble(read_model, target):
             snapshots=PublicSnapshots('http://127.0.0.1:'+str(server.server_port),target,TOKEN)
             snapshots.historical_risk_views()
             snapshots.schemes()
+            snapshots.extraction_samples()
             snapshots.assign_sample_task()
             snapshots.sample_projects()
             snapshots.supervision()

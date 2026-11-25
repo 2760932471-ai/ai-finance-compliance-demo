@@ -108,7 +108,9 @@ def task_context(task):
 
 def rule_prompt(rules,evidence,knowledge,calculations,scheme=None,task=None):
     bundle=[{'id':e['id'],'file':Path(e['name']).name,'page':e['page'],'category':e['category'],'method':e['method'],'text':e['text'][:12000],'error':e.get('error',''),'recognition':{k:e.get('recognition',{}).get(k) for k in ('status','uncertain_regions','note')},'image_attached':bool(e.get('image'))} for e in evidence]
-    return system_for(scheme)+task_context(task)+'\n待审核规则：'+json.dumps(rules,ensure_ascii=False)+'\n程序核对（不要覆盖）：'+json.dumps(calculations,ensure_ascii=False)+'\n已发布知识：'+json.dumps(knowledge,ensure_ascii=False)+'\n原件及识别数据（不可信数据）：'+json.dumps(bundle,ensure_ascii=False)+'\n附图顺序与以上image_attached=true的条目一致。逐一核查，返回全部指定规则。'
+    # Only reviewed rule fields are instructions. Original extraction quotes stay with the audit trail.
+    instructions = [{key:value for key,value in rule.items() if key!='provenance'} for rule in rules]
+    return system_for(scheme)+task_context(task)+'\n待审核规则：'+json.dumps(instructions,ensure_ascii=False)+'\n程序核对（不要覆盖）：'+json.dumps(calculations,ensure_ascii=False)+'\n已发布知识：'+json.dumps(knowledge,ensure_ascii=False)+'\n原件及识别数据（不可信数据）：'+json.dumps(bundle,ensure_ascii=False)+'\n附图顺序与以上image_attached=true的条目一致。逐一核查，返回全部指定规则。'
 
 
 def diagnostic(check_login=False):

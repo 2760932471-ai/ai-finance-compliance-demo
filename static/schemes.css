@@ -28,3 +28,23 @@
 .task-binding{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;margin:1rem 0;border-left:3px solid #3868c8}
 .task-binding p{margin:.5rem 0;color:var(--text)}
 .task-binding small{color:var(--muted)}
+.extract-panel .extract-upload{display:flex;flex-wrap:wrap;align-items:flex-end;gap:.7rem}
+.extract-upload label{min-width:12rem;flex:1}
+.extract-result{display:grid;gap:.7rem;min-width:0}
+.extract-result:empty,.extract-message:empty{display:none}
+.extract-job-head{display:flex;gap:.7rem;align-items:center;flex-wrap:wrap}
+.extract-job-head strong{overflow-wrap:anywhere}
+.extract-message,.extract-result p,.extract-warnings{margin:0}
+.extract-error,.extract-warnings,.extract-question{color:#8a521d;font-size:.87rem}
+.extract-candidates article{padding:1rem 0;border-bottom:1px solid var(--line,#dbe3ee)}
+.extract-candidates article:last-child{border:0}
+.extract-candidates .extract-choice{display:flex;align-items:flex-start;gap:.6rem}
+.extract-candidates small,.extract-source figcaption{display:block;color:var(--muted,#5b6e85);font-size:.78rem}
+.extract-candidates article > p{margin:.65rem 0;line-height:1.6}
+.extract-source{margin:.65rem 0;border-left:3px solid #c6d8ed;background:#f6f9fd;padding:.55rem .8rem}
+.extract-source blockquote{white-space:pre-wrap;overflow-wrap:anywhere;margin:.3rem 0 0;font-size:.88rem}
+
+.scope-extraction-link{display:inline-block;margin-top:.8rem;color:#3159a9;font-size:.8rem;text-underline-offset:2px}
+
+.extract-result progress{width:100%;height:.45rem;accent-color:#3567c7}
+.extract-candidates{max-height:38rem;overflow-y:auto;overscroll-behavior:contain}
