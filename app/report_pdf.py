@@ -4,6 +4,7 @@ import os
 import re
 import threading
 from pathlib import Path
+from . import report_snapshot
 from xml.sax.saxutils import escape
 
 from reportlab.lib import colors
@@ -36,13 +37,13 @@ def font_name():
 
 
 def safe_text(value):
-    text = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', str(value or '—'))
+    text = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', str('—' if value is None or value == '' else value))
     return escape(text).replace('\n', '<br/>')
 
 
 def excerpt(value, max_chars, max_lines):
     """Keep the PDF readable without confusing an excerpt with the source text."""
-    text = str(value or '—')
+    text = str('—' if value is None or value == '' else value)
     lines = text.splitlines()
     if len(lines)>max_lines:
         head = max_lines//2
@@ -69,6 +70,7 @@ class ReportDocument(SimpleDocTemplate):
 def render(snapshot, images):
     """Return complete PDF bytes or raise; caller publishes only after success."""
     font = font_name()
+    info = report_snapshot.presentation(snapshot)
     styles = {
         'title': ParagraphStyle('title', fontName=font, fontSize=23, leading=33, textColor=NAVY, spaceAfter=16),
         'heading': ParagraphStyle('heading', fontName=font, fontSize=15, leading=23, textColor=NAVY, spaceBefore=14, spaceAfter=9, keepWithNext=True),
@@ -77,8 +79,8 @@ def render(snapshot, images):
     }
     stream = io.BytesIO()
     doc = ReportDocument(stream, pagesize=A4, leftMargin=42, rightMargin=42,
-                         topMargin=44, bottomMargin=42, title='AI财务审核 · '+snapshot['project']['name'],
-                         author='AI财务审核', pageCompression=1)
+                         topMargin=44, bottomMargin=42, title=info['title']+' · '+snapshot['project']['name'],
+                         author=info['brand'], pageCompression=1)
     story = []
 
     def paragraph(text, style='body', markup=False):
@@ -86,10 +88,10 @@ def render(snapshot, images):
         story.append(item)
         return item
 
-    def heading(text, anchor):
+    def heading(text, anchor, *, child=False):
         item = paragraph(text, 'heading')
         item.audit_anchor = anchor
-        item.audit_level = 1 if re.match(r'^(T1-|D\d+-P)', anchor) else 0
+        item.audit_level = 1 if child else 0
 
     def field(label, value):
         paragraph(f'<b>{safe_text(label)}</b>　{safe_text(value)}', markup=True)
@@ -106,32 +108,42 @@ def render(snapshot, images):
         story.append(item)
 
     run = snapshot['run']; summary = snapshot['summary']; counts = summary['counts']
-    paragraph('AI财务审核', 'title')
+    paragraph(info['title'], 'title')
+    paragraph(info['brand'], 'small')
+    if snapshot.get('scheme'):
+        field('审核方案', info['name'] + ' · V' + info['version'])
+        if info['scope']: field('适用范围', info['scope'])
     paragraph(snapshot['project']['name'], 'heading')
+    if run.get('business_id'): field('业务编号',run['business_id'])
+    if run.get('parent_run'): field('上次审核批次',run['parent_run'])
+    if run.get('supervision_task'):
+        paragraph('监管任务来源', 'heading')
+        for key, label in report_snapshot.SUPERVISION_FIELDS.items():
+            field(label, run['supervision_task'][key])
     field('项目结论', summary['verdict'])
     field('确认状态', f"已人工确认：{run['confirmed_by']} / {run['confirmed_at']}" if run['confirmed_at'] else 'AI初审 · 待人工确认')
     field('优先事项', f"P0阻断 {summary['blockers']} 项；规则执行 {'完整' if summary['complete'] else '未完整，不可作为完整审核结论'}")
     table([['通过','不通过','待人工判断','规则返回'],
-           [counts['通过'],counts['不通过'],counts['待人工判断'],f"{summary['total']} / 65"]], [128,128,128,127])
+           [counts['通过'],counts['不通过'],counts['待人工判断'],f"{summary['total']} / {info['total']}"]], [128,128,128,127])
     paragraph(f"报告时间：{snapshot['time']}\n运行编号：{run['id']}\n报告编号：{snapshot['id']}\n规则版本：{run['rule_version']}", 'small')
     heading('优先处理事项', 'risks')
     failures = sorted((r for r in snapshot['results'] if r['verdict']=='不通过'), key=lambda r:(r.get('risk')!='P0', r['id']))
     for result in failures[:6]:
-        paragraph(f'<link href="#{result["id"]}" color="#365DE8">{safe_text(result["id"]+" "+result.get("name","")+" "+result.get("risk",""))}</link>', markup=True)
+        paragraph(f'<link href="#{report_snapshot.anchor("rule",result["id"])}" color="#365DE8">{safe_text(result["id"]+" "+result.get("name","")+" "+result.get("risk",""))}</link>', markup=True)
         paragraph(result.get('suggestion') or '请对照关联原件核实后处理。', 'small')
     if not failures: paragraph('未发现明确不通过项；待人工项仍需核实。')
     paragraph('阅读顺序：概览与风险 → 逐项审核 → 证据原件与识别 → 人工记录 → 执行来源。PDF书签及证据编号可跳转。', 'small')
-    paragraph('AI观察与转写不等于真实性认证。无法核实的内容保留人工判断；最终责任由财务确认。', 'small')
+    paragraph('AI观察与转写不等于真实性认证。无法核实的内容保留人工判断；最终意见由授权人员确认。', 'small')
     story.append(PageBreak())
     heading('逐项审核结果', 'results')
     for result in snapshot['results']:
-        heading(f"{result['id']}  {result.get('name','')}  [{result['verdict']}]", result['id'])
+        heading(f"{result['id']}  {result.get('name','')}  [{result['verdict']}]", report_snapshot.anchor('rule',result['id']), child=True)
         field('风险与审核标准', result.get('risk','')+' · '+result.get('principle',''))
         field('AI观察事实', result.get('facts'))
         field('原审核依据', result.get('basis'))
         references = result.get('evidence_ids', [])
         if references:
-            paragraph('当前引用证据：'+'　'.join(f'<link href="#{ref}" color="#365DE8">{ref}</link>' for ref in references), markup=True)
+            paragraph('当前引用证据：'+'　'.join(f'<link href="#{report_snapshot.anchor("evidence",ref)}" color="#365DE8">{safe_text(ref)}</link>' for ref in references), markup=True)
         else: field('当前引用证据', result.get('missing') or '未引用材料，需人工补充依据。')
         if result.get('missing'): field('缺失或不确定性', result['missing'])
         field('处理建议', result.get('suggestion'))
@@ -151,12 +163,12 @@ def render(snapshot, images):
         story.append(Spacer(1, 10))
     story.append(PageBreak())
     heading('证据索引', 'evidence-index')
-    table([['证据编号','来源文件 / 页码','识别方式']]+[
-        [e['id'], f"{e['name']} / 第{e['page']}页", e['method']] for e in snapshot['evidence']], [84,320,107])
+    table([['证据编号','来源文件 / 位置','识别方式']]+[
+        [e['id'], f"{e['name']} / {report_snapshot.location(e)}", e['method']] for e in snapshot['evidence']], [84,320,107])
     for evidence in snapshot['evidence']:
         story.append(PageBreak())
-        heading(f"{evidence['id']}  原件与识别", evidence['id'])
-        field('来源', f"{evidence['name']} · 第{evidence['page']}页")
+        heading(f"{evidence['id']}  原件与识别", report_snapshot.anchor('evidence',evidence['id']), child=True)
+        field('来源', f"{evidence['name']} · {report_snapshot.location(evidence)}")
         if evidence['id'] in images:
             image = Image(io.BytesIO(images[evidence['id']]))
             scale = min(511/image.imageWidth, 320/image.imageHeight)
@@ -175,7 +187,7 @@ def render(snapshot, images):
             field('原始OCR候选（未经纠正）', excerpt(evidence.get('raw_text', evidence.get('text')),
                                                     120 if illustrated else 200, 2 if illustrated else 4))
         paragraph('原件SHA-256：'+evidence['sha256'], 'small')
-        paragraph('识别结果仅说明材料可见内容，不证明照片、票据或印章真实。', 'small')
+        paragraph('识别结果记录材料的可见内容，真实性需要相应的核验依据。', 'small')
     story.append(PageBreak())
     heading('人工修订与确认记录', 'reviews')
     if not snapshot['reviews']: paragraph('暂无人工修订记录。')
@@ -188,9 +200,22 @@ def render(snapshot, images):
     trace = snapshot['trace']; local = snapshot['technical_checks']
     field('报告快照版本', snapshot['schema_version'])
     field('Harness / 识别版本', str(trace.get('harness_version') or '历史未记录')+' / '+str(trace.get('recognition_version') or '历史未记录'))
-    paragraph(local.get('scope_note', '本地核验记录由程序生成，日期匹配或含EXIF不等于照片真实。'))
-    field('日期核验', f"{len(local.get('calendar',[]))} 条；匹配 {sum(x.get('status')=='matched' for x in local.get('calendar',[]))} 条")
-    field('原图元数据', f"{len(local.get('photo_metadata',[]))} 份记录；读取成功 {sum(x.get('status')=='read' for x in local.get('photo_metadata',[]))} 份")
+    if info['finance'] or local.get('calendar') or local.get('photo_metadata'):
+        paragraph(local.get('scope_note', '本地核验记录由程序生成，日期匹配或含EXIF不等于照片真实。'))
+        field('日期核验', f"{len(local.get('calendar',[]))} 条；匹配 {sum(x.get('status')=='matched' for x in local.get('calendar',[]))} 条")
+        field('原图元数据', f"{len(local.get('photo_metadata',[]))} 份记录；读取成功 {sum(x.get('status')=='read' for x in local.get('photo_metadata',[]))} 份")
+    if snapshot.get('scheme'):
+        field('知识来源', '本次召回 '+str(len(snapshot['knowledge_sources']))+' 个片段')
+        for item in snapshot['knowledge_sources']:
+            paragraph(report_snapshot.source_description(item),'small')
+        for rule in snapshot['excluded_rules']:
+            field('不适用审核项',f"{rule['id']} · {rule.get('name','')} · {rule.get('reason','')}")
+        evidence_by_id = {e['id']: e for e in snapshot['evidence']}
+        for fact in snapshot['facts']:
+            refs = report_snapshot.fact_refs(fact)
+            links = '　'.join(f'<link href="#{report_snapshot.anchor("evidence",ref)}" color="#365DE8">{safe_text(ref)}</link>' for ref in refs)
+            loc = report_snapshot.location(fact) or '；'.join(filter(None,(report_snapshot.location(evidence_by_id[ref]) for ref in refs)))
+            paragraph(f'{safe_text(report_snapshot.fact_text(fact))}　{links}　{safe_text(loc)}',markup=True)
     for task in trace.get('traces') or []:
         paragraph(f"尝试 {task.get('attempt','')}：{task.get('status','')}；接受 {task.get('accepted',0)} 条；缓存：{task.get('cached',False)}；模型任务：{task.get('model_job','未记录')}", 'small')
     paragraph('原包SHA-256：'+str(run.get('source_hash') or '未记录'), 'small')
@@ -198,7 +223,7 @@ def render(snapshot, images):
 
     def footer(canvas, document):
         canvas.saveState(); canvas.setFont(font, 8); canvas.setFillColor(MUTED)
-        canvas.drawString(42, 24, 'AI财务审核 · '+snapshot['id'])
+        canvas.drawString(42, 24, info['brand']+' · '+snapshot['id'])
         canvas.drawRightString(A4[0]-42, 24, f'第 {document.page} 页')
         canvas.restoreState()
 

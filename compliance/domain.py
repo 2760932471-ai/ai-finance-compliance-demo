@@ -14,6 +14,29 @@ from .seed import DIMENSIONS, LAYERS
 KINDS = {"over_contract": "flow", "missing_acceptance": "flow", "date_order": "flow", "amount_outlier": "stat", "shared_account": "graph"}
 FIELDS = {"id", "name", "unit", "business_type", "supplier", "bank_account", "person", "amount", "contract_amount", "contract_date", "payment_date", "accepted", "document"}
 
+# Names used by the capture form and the three graph edges in build_graph.
+FACT_FIELDS = {'unit', 'supplier', 'bank_account', 'person', 'document', 'amount',
+               'contract_amount', 'contract_date', 'payment_date', 'accepted'}
+RELATIONS = {'supplier_account', 'event_supplier', 'event_person'}
+
+
+def validate_fact_links(ref, row):
+    fields = ref.get('field_evidence')
+    relations = ref.get('relation_evidence')
+    require(ref.get('proof_version') == 2, '不支持的事实取证版本')
+    required = FACT_FIELDS if row.get('accepted') is not None else FACT_FIELDS - {'accepted'}
+    require(isinstance(fields, dict) and required <= fields.keys() <= FACT_FIELDS,
+            '请逐项指定业务字段的原件依据')
+    require(isinstance(relations, dict) and relations.keys() == RELATIONS, '请指定每条业务关系的原件依据')
+    refs = set(ref['evidence_ids'])
+    linked = set()
+    for values in [*fields.values(), *relations.values()]:
+        require(isinstance(values, list) and values and all(isinstance(x,str) and x in refs for x in values),
+                '字段或关系引用了本次关联范围以外的证据')
+        require(len(values) == len(set(values)), '同一字段或关系的证据编号重复')
+        linked.update(values)
+    require(linked == refs, '存在未绑定到字段或关系的证据')
+
 
 def require(condition, message):
     if not condition:
@@ -166,14 +189,17 @@ def validate_events(rows, ontology):
                 require(m["target"] not in row or row[m["target"]] == row[m["source"]], f"来源字段 {m['source']} 与 {m['target']} 冲突")
                 row[m["target"]] = row[m["source"]]
         provenance = row.get('provenance')
+        require('accepted' in row, '请明确验收状态，未知可填写 null')
         row = {k: row.get(k) for k in FIELDS}
         if provenance is not None:
             require(isinstance(provenance, dict), '证据来源格式错误')
-            allowed = {'run_id','evidence_ids','actor','note','captured_at','evidence_sha256','source_hash','method'}
+            allowed = {'run_id','evidence_ids','actor','note','captured_at','evidence_sha256','source_hash','method','proof_version','field_evidence','relation_evidence','evidence_index','facts_sha256'}
             require(set(provenance) <= allowed, '证据来源包含不支持字段')
             require(isinstance(provenance.get('run_id'), str) and re.fullmatch(r'[a-f0-9]{16}', provenance['run_id']), '原审核编号无效')
             refs=provenance.get('evidence_ids')
             require(isinstance(refs,list) and 1 <= len(refs) <= 100 and all(isinstance(x,str) and re.fullmatch(r'[A-Z0-9-]{1,60}',x) for x in refs), '证据编号无效')
+            if any(k in provenance for k in ('proof_version','field_evidence','relation_evidence','evidence_index','facts_sha256')):
+                validate_fact_links(provenance, row)
             for key in ('actor','note'):
                 text(provenance.get(key), key, 500)
             row['provenance'] = copy.deepcopy(provenance)
@@ -182,7 +208,7 @@ def validate_events(rows, ontology):
         require(row["business_type"] in ontology["classifications"], "业务类型未在已发布本体中定义")
         number(row["amount"], "支付金额")
         number(row["contract_amount"], "合同金额", 0.01)
-        require(type(row["accepted"]) is bool, "accepted 须为 true 或 false")
+        require(row["accepted"] is None or type(row["accepted"]) is bool, "accepted 须为 true、false 或 null（未知）")
         for field in ("contract_date", "payment_date"):
             require(re.fullmatch(r"\d{4}-\d{2}-\d{2}", row[field]) is not None, "日期须为 YYYY-MM-DD")
             try:
@@ -204,11 +230,18 @@ def build_graph(events):
             node=nodes.setdefault(id_,{"id":id_,"label":row[field],"type":prefix,"type_label":label,"record_ids":[],"source_kinds":[]})
             if row['id'] not in node['record_ids']:node['record_ids'].append(row['id'])
             if kind not in node['source_kinds']:node['source_kinds'].append(kind)
-        links=[(f"supplier:{row['supplier']}",f"bank:{row['bank_account']}","使用账户"),(f"event:{row['id']}",f"supplier:{row['supplier']}","支付给")]
-        if row.get('person'):links.append((f"event:{row['id']}",f"person:{row['person']}","经办"))
-        for a,b,label in links:
+        links=[(f"supplier:{row['supplier']}",f"bank:{row['bank_account']}","使用账户","supplier_account"),
+               (f"event:{row['id']}",f"supplier:{row['supplier']}","支付给","event_supplier")]
+        if row.get('person'):links.append((f"event:{row['id']}",f"person:{row['person']}","经办","event_person"))
+        for a,b,label,relation in links:
             edge=edges.setdefault((a,b,label),{'source':a,'target':b,'label':label,'record_ids':[],'source_kinds':[]})
             edge['record_ids'].append(row['id'])
+            proof=row.get('provenance')
+            if proof:
+                ids=proof.get('relation_evidence',{}).get(relation)
+                edge.setdefault('evidence',[]).append({
+                    'event_id':row['id'], 'run_id':proof['run_id'],
+                    'scope':'relation' if ids else 'record', 'evidence_ids':ids or proof['evidence_ids']})
             if kind not in edge['source_kinds']:edge['source_kinds'].append(kind)
     degree=defaultdict(int)
     for a,b,_ in edges:degree[a]+=1;degree[b]+=1
@@ -261,8 +294,16 @@ def evaluate(events, config):
                     explanation = f"支付 {row['amount']:,.2f}，合同 {row['contract_amount']:,.2f}；超付比例 {ratio:.1%}，阈值 {threshold:.1%}。"
                     evidence = {k: row[k] for k in ("amount", "contract_amount", "document")}
                 elif kind == "missing_acceptance":
-                    hit = not row["accepted"]
-                    explanation = "缺少已验收标记，需要核对验收原件。" if hit else "已记录验收标记，真实凭证仍应由原审核系统追溯。"
+                    accepted = row['accepted']
+                    old_group = row.get('provenance') and not row['provenance'].get('proof_version')
+                    evaluated = accepted is not None and not (accepted is False and old_group)
+                    hit = evaluated and accepted is False
+                    if not evaluated:
+                        explanation = '验收情况待核实，请补充验收原件。'
+                    elif hit:
+                        explanation = '记录明确为尚未验收，请核对付款条件及验收原件。'
+                    else:
+                        explanation = '已记录验收，可追溯对应凭证。'
                     evidence = {"accepted": row["accepted"], "document": row["document"]}
                 elif kind == "date_order":
                     hit = row["payment_date"] < row["contract_date"]

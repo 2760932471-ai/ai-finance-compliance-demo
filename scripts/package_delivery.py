@@ -5,10 +5,11 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def package():
-    target = ROOT.parent / 'AI财务审核-v0.7-本地演示源码.zip'
+    target = ROOT.parent / 'AI审核工作台-v0.8-本地演示源码.zip'
     folders = {'app','compliance','static','tests','scripts','docs','assets','examples','.devcontainer'}
     files = {'README.md','requirements.txt','server.py','bootstrap.py','launch.py','start-demo.cmd','start-demo.sh',
              'start.ps1','stop.ps1','启动系统.cmd','停止系统.cmd','.env.example','.gitignore','.gitattributes'}
+    files.update({'启动财务审核-Mac.command','更新已有演示-Mac.command','查看本次审核进度-Mac.command'})
     with ZipFile(target, 'w', ZIP_DEFLATED) as z:
         for p in sorted(ROOT.rglob('*')):
             if not p.is_file():continue

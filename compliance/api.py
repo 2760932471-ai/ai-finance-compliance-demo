@@ -3,7 +3,7 @@ import copy
 import hashlib
 import json
 import re
-from .domain import build_graph, graph_path, require, text, validate_events
+from .domain import build_graph, graph_path, require, text, validate_events, validate_fact_links, FIELDS
 from .reports import csv_report, html_report
 from .store import Store
 from . import graphdata
@@ -36,6 +36,21 @@ def validate_provenance(rows):
         digest = hashlib.sha256(json.dumps([evidence[x] for x in ids], sort_keys=True, ensure_ascii=False).encode()).hexdigest()
         if ref.get('evidence_sha256'):
             require(ref['evidence_sha256'] == digest, '原件证据已发生变化，请重新确认业务事实')
+        if any(k in ref for k in ('proof_version','field_evidence','relation_evidence','evidence_index','facts_sha256')):
+            validate_fact_links(ref, row)
+            # This digest binds values and exact field/relationship assignments
+            # to the frozen evidence set and run on round trips through export.
+            bundle = [ref['run_id'], digest, {k:row.get(k) for k in FIELDS}, ref['field_evidence'], ref['relation_evidence']]
+            facts_digest = hashlib.sha256(json.dumps(bundle,sort_keys=True,ensure_ascii=False).encode()).hexdigest()
+            if 'facts_sha256' in ref:
+                require(ref['facts_sha256'] == facts_digest, '结构化事实或证据绑定已变化，请重新确认')
+            ref['facts_sha256'] = facts_digest
+            ref['evidence_index'] = {}
+            for id_ in ids:
+                page = evidence[id_]
+                locator = copy.deepcopy(page.get('locator') or {'page':page.get('page')})
+                ref['evidence_index'][id_] = {'name':page.get('name',''), 'document_id':page.get('document_id',''),
+                                               'sha256':page.get('sha256',''), 'locator':locator}
         ref['evidence_sha256'] = digest
         ref['source_hash'] = original.get('source_hash', '')
         ref['method'] = '人工对照原件确认结构化事实'
@@ -49,6 +64,9 @@ def capture(db, body):
     require(isinstance(row, dict), '请填写业务事实')
     row['provenance'] = {'run_id': body.get('source_run'), 'evidence_ids': body.get('evidence_ids'),
                          'actor': body.get('actor'), 'note': body.get('note'), 'captured_at': original_store.now()}
+    for key in ('proof_version','field_evidence','relation_evidence'):
+        if key in body:
+            row['provenance'][key] = copy.deepcopy(body[key])
     validate_provenance([row])
     demo = snapshot['dataset']['source'] == '内置虚构演示数据'
     if demo:

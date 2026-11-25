@@ -1,11 +1,11 @@
 """Local single-user audit application. Python stdlib server; loopback only."""
-import base64,concurrent.futures,hashlib,io,json,mimetypes,os,re,secrets,threading,zipfile
+import base64,html,shutil,concurrent.futures,hashlib,io,json,mimetypes,os,re,secrets,threading,zipfile
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse,unquote,parse_qs
-from compliance import api as compliance_api
+from compliance import api as compliance_api, supervision
 from compliance.store import Conflict, Store as ComplianceStore
-from app import knowledge,store,engine,materials,model,report,jev,harness,evaluations,decisions,checks,security
+from app import schemes,casework,knowledge,store,engine,materials,model,report,jev,harness,evaluations,decisions,checks,security
 
 ROOT=Path(__file__).resolve().parent
 if (ROOT/'.env').exists():
@@ -19,10 +19,16 @@ RUN_LOCK=threading.RLock()
 
 def public_run(run,full=True):
     r=json.loads(json.dumps(run));r.pop('source',None);r['summary']=engine.summary(run)
+    snapshot = r.get('scheme_snapshot') or {}
+    r['scheme_id'] = r.get('scheme_id') or 'finance-t1'
+    r['scheme_name'] = snapshot.get('name') or r.get('scheme_name') or '活动费用审核 T1'
+    r['scheme_version'] = r.get('scheme_version') or snapshot.get('version') or 1
+    r['business_id'] = casework.business_identity(r)
+    r['summary'].setdefault('expected',len(r.get('rules',engine.RULES)))
     r['reviews']=store.related('review','run_id',run['id'])
     r['reports']= [report.public_record(x) for x in store.related('report','run_id',run['id'])]
     if not full:
-        return {k:r.get(k) for k in ('id','project_id','status','phase','progress','created_at','updated_at','summary','duration','error','confirmed_at','parent_run')}
+        return {k:r.get(k) for k in ('id','project_id','status','phase','progress','created_at','updated_at','summary','duration','error','confirmed_at','parent_run','business_id','scheme_id','scheme_version','scheme_name','supervision_task')}
     r['results']=engine.effective_results(run)
     if run.get('evidence'):r['technical_checks']=checks.snapshot(run)
     for d in r.get('documents',[]):d.pop('path',None)
@@ -35,22 +41,73 @@ def projects():
     runs=store.all_items('run');out=[]
     for p in store.all_items('project'):
         pr=sorted([r for r in runs if r['project_id']==p['id']],key=lambda x:x['created_at'],reverse=True)
-        out.append({**p,'runs':[public_run(r,False) for r in pr],'latest':public_run(pr[0],False) if pr else None})
+        out.append({'scheme_id':'finance-t1','scheme_version':1,'scheme_name':'活动费用审核 T1',**p,'runs':[public_run(r,False) for r in pr],'latest':public_run(pr[0],False) if pr else None})
     return out
 
-def create_upload(raw,name,project_id='',parent_run='',corrections=None):
-    if len(raw)>materials.MAX_UPLOAD:raise ValueError('文件超过160MB限制')
-    if not zipfile.is_zipfile(io.BytesIO(raw)):raise ValueError('请上传有效的ZIP压缩包')
-    if sum(r.get('status') in ('queued','processing') for r in store.all_items('run'))>=4:
-        raise ValueError('待处理任务已达上限，请等待现有任务完成')
-    name=str(name).strip()[:100]
-    if not project_id:
-        p=store.put('project',{'id':store.uid(),'name':name or '新建费用审核','created_at':store.now(),'archived':False});project_id=p['id']
-    else:store.get('project',project_id)
-    rid=store.uid();folder=store.DATA/'runs'/rid;folder.mkdir(parents=True)
-    source=folder/'source.zip';source.write_bytes(raw)
-    run={'id':rid,'project_id':project_id,'created_at':store.now(),'source':str(source),'source_hash':hashlib.sha256(raw).hexdigest(),'status':'queued','phase':'等待处理','progress':0,'events':[],'parent_run':parent_run,'rules':engine.RULES,'corrections':corrections or []}
-    store.put('run',run);POOL.submit(engine.process,rid);return run
+def create_upload(raw,name,project_id='',parent_run='',corrections=None,*,scheme_id='',business_id='',task_id=''):
+    with RUN_LOCK:
+        if len(raw)>materials.MAX_UPLOAD:raise ValueError('材料包超过160MB限制')
+        if not zipfile.is_zipfile(io.BytesIO(raw)):raise ValueError('请上传有效的ZIP压缩包')
+        if sum(r.get('status') in ('queued','processing') for r in store.all_items('run'))>=4:
+            raise ValueError('待处理任务已达上限，请等待现有任务完成')
+        if len(business_id)>100 or any(ord(ch)<32 for ch in business_id):
+            raise ValueError('业务编号不得超过100字且不能含控制字符')
+        if task_id and not project_id and not str(name).strip():
+            raise ValueError('请为定向核验选择已有合同项目，或明确填写新项目名称')
+        if not project_id and not str(name).strip():
+            matching = [p for p in store.all_items('project') if not p.get('archived')
+                        and p.get('scheme_id',casework.FINANCE)==(scheme_id or casework.FINANCE)]
+            if matching:
+                project_id = matching[0]['id']
+        project = store.get('project',project_id) if project_id else None
+        if project and project.get('archived'):
+            raise ValueError('项目已归档，请先恢复项目')
+        if project and scheme_id and scheme_id!=project.get('scheme_id','finance-t1'):
+            raise ValueError('现有项目已绑定审核方案，请使用项目方案')
+        prior = store.get('run',parent_run) if parent_run else None
+        if prior and prior['project_id']!=project_id:
+            raise ValueError('原审核不属于当前项目')
+        if prior and prior.get('scheme_snapshot'):
+            snapshot = prior['scheme_snapshot']
+        else:
+            selected = project.get('scheme_id','finance-t1') if project else scheme_id or 'finance-t1'
+            snapshot = schemes.published(selected,project.get('scheme_version',1) if project else None)
+        rid = store.uid()
+        identity = casework.business_identity(prior) if prior else business_id.strip() or 'BUS-'+rid
+        pid = project_id or store.uid()
+        if not prior and project and business_id and any(casework.business_identity(r)==identity for r in store.related('run','project_id',pid)):
+            raise ValueError('项目中已有该业务编号，请打开原审核补证或复审')
+        binding = {'scheme_id':snapshot['id'],'scheme_version':snapshot['version'],'scheme_name':snapshot['name']}
+        folder = store.DATA/'runs'/rid
+        folder.mkdir(parents=True)
+        source = folder/'source.zip'
+        try:
+            source.write_bytes(raw)
+            run={'id':rid,'project_id':pid,'business_id':identity,'created_at':store.now(),'source':str(source),
+                 'source_hash':hashlib.sha256(raw).hexdigest(),'status':'queued','phase':'等待处理','progress':0,
+                 'events':[],'parent_run':parent_run,'rules':schemes.active_rules(snapshot),'scheme_snapshot':snapshot,
+                 **binding,'corrections':corrections or []}
+            with store.connect() as db:
+                db.execute('BEGIN IMMEDIATE')
+                if prior and prior.get('supervision_task'):
+                    run['supervision_task'] = prior['supervision_task']
+                elif task_id:
+                    if snapshot['id'] != 'contract':
+                        raise ValueError('定向合同核验须选择合同审核项目')
+                    if project and project.get('org_id') not in (None, '', supervision.ORG):
+                        raise ValueError('现有项目与核查组织不一致')
+                    run['supervision_task'] = supervision.audit_request(db, task_id)
+                if not project:
+                    pr={'id':pid,'name':str(name).strip()[:100] or '新建审核项目','created_at':store.now(),'archived':False,**binding}
+                    if task_id:
+                        pr['org_id'] = run['supervision_task']['org_id']
+                    db.execute('INSERT INTO objects VALUES(?,?,?)',('project',pid,json.dumps(pr,ensure_ascii=False)))
+                db.execute('INSERT INTO objects VALUES(?,?,?)',('run',rid,json.dumps(run,ensure_ascii=False)))
+        except Exception:
+            shutil.rmtree(folder,ignore_errors=True)
+            raise
+        POOL.submit(engine.process,rid)
+        return run
 
 def seed():
     if not store.all_items('knowledge'):
@@ -62,7 +119,7 @@ def seed():
             r.update(status='interrupted',error='上次运行被中断，原包和阶段记录已保留；可重试');store.put('run',r)
 
 class Handler(BaseHTTPRequestHandler):
-    server_version='FinancialReview/0.7'
+    server_version='FinancialReview/0.8'
     sys_version=''
     def setup(self):
         super().setup()
@@ -124,27 +181,42 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):self.dispatch()
     def read(self):
         u=urlparse(self.path);p=u.path;q=parse_qs(u.query)
-        if p=='/health':return self.send({'status':'ok','version':'0.7','mode':'integrated-local'})
+        if p=='/health':return self.send({'status':'ok','version':'0.8','mode':'integrated-local'})
+        if p.startswith('/api/supervision/'):
+            return supervision.read(self,p[len('/api/supervision'):],q)
+        if p=='/api/schemes':return self.send(schemes.list_schemes())
+        if p=='/api/schemes/manage':return self.send(schemes.manage_list())
+        m=re.fullmatch(r'/api/schemes/([a-zA-Z0-9_-]+)',p)
+        if m:
+            version = q.get('version',[''])[0]
+            if version:
+                if not version.isdigit() or len(version)>9:raise ValueError('方案版本无效')
+                return self.send(schemes.published(m[1], int(version)))
+            return self.send(schemes.detail(m[1]))
         if p.startswith('/api/compliance/'):
             return compliance_api.read(self,p[len('/api/compliance'):],q)
-        if p=='/api/bootstrap':return self.send({'app_version':'0.7','offline':os.getenv('AUDIT_AI','codex')=='off','token':TOKEN,'model_available':model.available(),'model_diagnostic':model.diagnostic(),'engine':'Codex · 当前登录','rules_version':engine.RULES[0]['version'],'harness':harness.VERSION,'jev':jev.status(),'decision':decisions.status()})
+        if p=='/api/bootstrap':return self.send({'app_version':'0.8','offline':os.getenv('AUDIT_AI','codex')=='off','token':TOKEN,'model_available':model.available(),'model_diagnostic':model.diagnostic(),'engine':'Codex · 当前登录','rules_version':engine.RULES[0]['version'],'harness':harness.VERSION,'jev':jev.status(),'decision':decisions.status()})
         if p=='/api/model/diagnostic':return self.send(model.diagnostic())
         if p=='/api/knowledge/chunks':
-            doc=store.get('knowledge',q.get('id',[''])[0]);return self.send({'document':doc,'chunks':knowledge.chunks(doc)})
+            doc=casework.scoped_document(q.get('id',[''])[0],q.get('scheme_id',['finance-t1'])[0]);return self.send({'document':doc,'chunks':knowledge.chunks(doc)})
         if p=='/api/projects':return self.send(projects())
         if p=='/api/rules':return self.send(engine.RULES)
-        if p=='/api/knowledge':return self.send(store.all_items('knowledge'))
+        if p=='/api/knowledge':return self.send(casework.scoped_documents(q.get('scheme_id',['finance-t1'])[0]))
         if p=='/api/feedback':return self.send(store.all_items('feedback'))
         if p=='/api/evaluations':return self.send({'cases':store.all_items('eval_case'),'runs':store.all_items('evaluation')})
         if p=='/api/operations':
-            ps=projects();runs=store.all_items('run');latest=[store.get('run',p['latest']['id']) for p in ps if p['latest']];risk={};counts={s:0 for s in engine.STATES}
-            for r in latest:
+            ps=store.all_items('project');runs=store.all_items('run')
+            latest={}
+            for run in runs:  # newest first, including runs created in the same second
+                latest.setdefault((run['project_id'],casework.business_identity(run)),run)
+            risk={};counts={s:0 for s in engine.STATES}
+            for r in latest.values():
                 counts[engine.summary(r)['verdict']]+=1
                 for x in engine.effective_results(r):
                     if x['verdict']!='通过':
-                        k=x['id'];risk.setdefault(k,{'id':k,'name':x['name'],'fail':0,'manual':0,'runs':[]})
+                        k=(r.get('scheme_id',casework.FINANCE),x['id']);risk.setdefault(k,{'id':x['id'],'name':x['name'],'fail':0,'manual':0,'runs':[]})
                         risk[k]['fail' if x['verdict']=='不通过' else 'manual']+=1;risk[k]['runs'].append(r['id'])
-            return self.send({'projects':len(ps),'runs':len(runs),'counts':counts,'active':sum(r['status'] in ('processing','queued') for r in runs),'failed':sum(r['status'] in ('failed','needs_attention','interrupted') for r in runs),'reviews':len(store.all_items('review')),'average_seconds':round(sum(r.get('duration',0) for r in runs)/max(1,sum('duration'in r for r in runs)),1),'tokens':sum(u.get('usage',{}).get('input_tokens',0)+u.get('usage',{}).get('output_tokens',0) for r in runs for u in r.get('usage',[])),'risk':sorted(risk.values(),key=lambda x:x['fail']*2+x['manual'],reverse=True),'feedback':store.all_items('feedback')})
+            return self.send({'projects':len(ps),'businesses':len(latest),'runs':len(runs),'counts':counts,'active':sum(r['status'] in ('processing','queued') for r in runs),'failed':sum(r['status'] in ('failed','needs_attention','interrupted') for r in runs),'reviews':len(store.all_items('review')),'timing':casework.timing_metrics(runs),'average_seconds':round(sum(r.get('duration',0) for r in runs)/max(1,sum('duration'in r for r in runs)),1),'tokens':sum(u.get('usage',{}).get('input_tokens',0)+u.get('usage',{}).get('output_tokens',0) for r in runs for u in r.get('usage',[])),'risk':sorted(risk.values(),key=lambda x:x['fail']*2+x['manual'],reverse=True),'feedback':store.all_items('feedback')})
         m=re.fullmatch(r'/api/runs/([a-f0-9]+)',p)
         if m:return self.send(public_run(store.get('run',m[1])))
         m=re.fullmatch(r'/api/runs/([a-f0-9]+)/evidence/([A-Z0-9-]+)/image',p)
@@ -157,7 +229,7 @@ class Handler(BaseHTTPRequestHandler):
             r=store.get('run',m[1]);d=next((x for x in r['documents'] if x['id']==m[2]),None)
             if not d:raise FileNotFoundError()
             suffix=Path(d['path']).suffix.lower()
-            if suffix not in ('.pdf','.jpg','.jpeg','.png','.html','.htm'):raise PermissionError('不允许下载该材料类型')
+            if suffix not in materials.SUPPORTED:raise PermissionError('不允许下载该材料类型')
             return self.send(security.local_file(d['path'],store.DATA/'runs'/r['id']/'files').read_bytes(),kind='application/octet-stream',extra={'Content-Disposition':f'attachment; filename="{d["id"]}{suffix}"'})
         m=re.fullmatch(r'/api/reports/([a-f0-9]+)',p)
         if m:
@@ -165,7 +237,7 @@ class Handler(BaseHTTPRequestHandler):
             disposition='inline' if fmt=='html' and q.get('preview')==['1'] else 'attachment'
             return self.send(payload,kind=kind,extra={'Content-Disposition':f'{disposition}; filename="audit-{x["run_id"]}-{x["id"]}.{fmt}"'})
         if p=='/api/knowledge/search':
-            return self.send(knowledge.retrieve(q.get('q',[''])[0])['results'])
+            return self.send(knowledge.retrieve(q.get('q',[''])[0],docs=casework.scoped_documents(q.get('scheme_id',['finance-t1'])[0]))['results'])
         if p.startswith('/api/'):raise FileNotFoundError()
         static=ROOT/'static';path=static/('index.html' if p=='/' else p.lstrip('/'))
         if not path.resolve().is_relative_to(static.resolve()) or not path.is_file():raise FileNotFoundError()
@@ -175,12 +247,15 @@ class Handler(BaseHTTPRequestHandler):
         p=urlparse(self.path).path
         if p=='/api/upload':
             raw=self.body(materials.MAX_UPLOAD);name=unquote(self.headers.get('X-Project-Name',''));pid=self.headers.get('X-Project-Id','')
-            with RUN_LOCK:return self.send(public_run(create_upload(raw,name,pid),False),201)
+            raw=casework.wrap_material(raw,unquote(self.headers.get('X-Filename','')))
+            run=create_upload(raw,name,pid,scheme_id=self.headers.get('X-Scheme-Id',''),business_id=unquote(self.headers.get('X-Business-Id','')),
+                              task_id=self.headers.get('X-Supervision-Task',''))
+            return self.send(public_run(run,False),201)
         m=re.fullmatch(r'/api/runs/([a-f0-9]+)/supplement',p)
         if m:
             prior=store.get('run',m[1]);n=int(self.headers.get('Content-Length','0'));filename=unquote(self.headers.get('X-Filename',''))
             if not prior.get('manifest') or not prior.get('documents') or prior['status'] in ('processing','queued','failed'):raise ValueError('请先完成原材料治理，再补充材料')
-            if n<=0 or n>materials.MAX_UPLOAD or Path(filename).suffix.lower() not in ('.pdf','.jpg','.jpeg','.png','.html','.htm'):raise ValueError('补证支持PDF、JPG、PNG、HTML，单文件不超过160MB')
+            if n<=0 or n>materials.MAX_UPLOAD or Path(filename).suffix.lower() not in materials.SUPPORTED:raise ValueError('补证支持 PDF、DOCX、TXT、JPG、PNG 或 HTML，单文件不超过160MB')
             raw=self.body(materials.MAX_UPLOAD);folder=store.DATA/'supplements';folder.mkdir(exist_ok=True);zpath=folder/(store.uid()+'.zip')
             with zipfile.ZipFile(zpath,'w',zipfile.ZIP_DEFLATED) as z:
                 with zipfile.ZipFile(prior['source']) as previous:
@@ -191,6 +266,12 @@ class Handler(BaseHTTPRequestHandler):
                 z.writestr('补充材料/'+store.uid()+'_'+Path(filename).name,raw)
             return self.send(public_run(create_upload(zpath.read_bytes(),'',prior['project_id'],prior['id'],prior.get('corrections',[])),False),201)
         body=self.jsonbody()
+        if p.startswith('/api/supervision/'):
+            return supervision.write(self,p[len('/api/supervision'):],body)
+        m=re.fullmatch(r'/api/schemes/([a-zA-Z0-9_-]+)/(save|trial|publish)',p)
+        if m:
+            fn = {'save':schemes.save, 'trial':schemes.trial, 'publish':schemes.publish}[m[2]]
+            return self.send(fn(m[1],body))
         if p.startswith('/api/compliance/'):
             try:return compliance_api.write(self,p[len('/api/compliance'):],body)
             except (KeyError,TypeError,AttributeError):raise ValueError('请求结构错误，请检查字段与 JSON 格式') from None
@@ -233,13 +314,17 @@ class Handler(BaseHTTPRequestHandler):
         if p=='/api/projects/update':
             x=store.get('project',body['id']);x['name']=body.get('name',x['name'])[:100];x['archived']=bool(body.get('archived',x['archived']));return self.send(store.put('project',x))
         if p=='/api/model/diagnostic':return self.send(model.probe() if body.get('probe') is True else model.diagnostic(check_login=True))
-        if p=='/api/knowledge/recall':return self.send(knowledge.retrieve(body.get('query'),body.get('top_k',6),body.get('method','bm25')))
+        if p=='/api/knowledge/recall':return self.send(knowledge.retrieve(body.get('query'),body.get('top_k',6),body.get('method','bm25'),docs=casework.scoped_documents(body.get('scheme_id','finance-t1'))))
+        if p in ('/api/knowledge/chunks','/api/knowledge/status'):
+            casework.scoped_document(body['id'],body.get('scheme_id','finance-t1'))
         if p=='/api/knowledge/chunks':return self.send(knowledge.resegment(body['id'],body.get('config'),body.get('revision',1)))
         if p=='/api/knowledge':
             title=body.get('title','').strip();text=body.get('text','').strip()
             if not title or not text:raise ValueError('请填写标题和知识正文')
             if len(text)>100000:raise ValueError('知识正文过长，请按条款拆分')
-            return self.send(store.put('knowledge',{'id':store.uid(),'title':title[:150],'text':text,'source':body.get('source','用户录入'),'status':'draft','version':'v1','created_at':store.now()}),201)
+            selected=body.get('scheme_id','finance-t1')
+            schemes.detail(selected)
+            return self.send(store.put('knowledge',{'scheme_id':selected,'id':store.uid(),'title':title[:150],'text':text,'source':body.get('source','用户录入'),'status':'draft','version':'v1','created_at':store.now()}),201)
         if p=='/api/knowledge/status':
             x=store.get('knowledge',body['id'])
             if x.get('locked'):raise ValueError('比赛规则原文已锁定，不允许停用')
@@ -255,11 +340,49 @@ class Handler(BaseHTTPRequestHandler):
             x['status']=status;x['updated_at']=store.now();return self.send(store.put('feedback',x))
         raise ValueError('未知操作')
 
-def create_server(port=8765, database=None):
-    seed()
-    httpd=ThreadingHTTPServer(('127.0.0.1',port),Handler)
-    httpd.compliance_store=ComplianceStore(database or store.DB)
+class SummaryHandler(Handler):
+    """Local aggregate-only entry point. Never calls the full-detail router."""
+
+    def write(self):
+        raise PermissionError('汇总入口只允许查看汇总指标')
+
+    def read(self):
+        path = urlparse(self.path).path
+        if path == '/health':
+            return self.send({'status':'ok', 'version':'0.8', 'mode':'summary-only'})
+        if path not in ('/', '/api/supervision/summary'):
+            raise PermissionError('当前入口仅授权查看监管汇总')
+        state = supervision.status(self.server.compliance_store)
+        scope = {key:state['scope'][key] for key in ('org_name', 'period', 'currency', 'demo')}
+        labels = {'total':'付款笔数', 'amount':'付款总额（元）', 'audited':'已审核笔数',
+                  'unaudited':'未审核笔数', 'clues':'线索笔数', 'excess':'涉线索合同超限金额（元）'}
+        metrics = {key:state['metrics'][key] for key in labels}
+        if path == '/api/supervision/summary':
+            return self.send({'scope':scope, 'metrics':metrics, 'as_of':state['as_of']})
+        cards = ''.join(f'<section><span>{label}</span><strong>{metrics[key]:,}</strong></section>'
+                        for key,label in labels.items())
+        page = f"""<!DOCTYPE html><html lang="zh-CN"><meta charset="utf-8">
+        <meta name="viewport" content="width=device-width,initial-scale=1"><title>监管汇总</title>
+        <style>body{{background:#f3f6fb;color:#172e4e;font:16px system-ui,sans-serif;margin:8vw;max-width:900px}}
+        main{{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}}
+        section{{padding:24px;background:white;border:1px solid #d6deea;border-radius:12px}}strong{{display:block;font-size:32px;margin-top:8px}}</style>
+        <p>监管工作台 · 汇总权限</p><h1>{html.escape(scope['org_name'])}付款监管汇总</h1>
+        <p>{html.escape(scope['period'])} · 截至 {html.escape(state['as_of'])} · 虚构演示台账</p><main>{cards}</main></html>"""
+        return self.send(page, kind='text/html; charset=utf-8')
+
+
+def create_server(port=8765, database=None, summary_only=False):
+    handler = SummaryHandler if summary_only else Handler
+    httpd = ThreadingHTTPServer(('127.0.0.1',port),handler)
+    try:
+        httpd.compliance_store = ComplianceStore(database or store.DB)
+        if not summary_only:
+            seed()
+    except Exception:
+        httpd.server_close()
+        raise
     return httpd
+
 
 if __name__=='__main__':
     import argparse
@@ -267,7 +390,7 @@ if __name__=='__main__':
     parser.add_argument('--port',type=int,default=int(os.getenv('PORT','8765')))
     args=parser.parse_args()
     server=create_server(args.port)
-    print(f'AI Finance Audit v0.7: http://127.0.0.1:{server.server_port}',flush=True)
+    print(f'AI Finance Audit v0.8: http://127.0.0.1:{server.server_port}',flush=True)
     try:server.serve_forever()
     except KeyboardInterrupt:pass
     finally:server.server_close()

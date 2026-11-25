@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ai-audit:report-snapshot:v2",
+  "title": "Versioned multi-scheme audit report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "id", "time", "project", "run", "scheme", "applicable_rule_ids", "excluded_rules", "summary", "results", "ai_results", "facts", "evidence", "reviews", "knowledge_sources", "technical_checks", "trace"],
+  "properties": {
+    "schema_version": {"const": "audit-report-v2"},
+    "id": {"type": "string", "pattern": "^[a-f0-9]{16}$"},
+    "time": {"type": "string"},
+    "project": {"type": "object", "required": ["id", "name"]},
+    "run": {
+      "type": "object", "required": ["id", "rule_version", "confirmed_at", "confirmed_by"],
+      "properties": {
+        "supervision_task": {
+          "type": "object", "additionalProperties": false, "required": ["id", "row_id", "org_id", "question"],
+          "properties": {
+            "id": {"type": "string", "minLength": 1}, "row_id": {"type": "string", "minLength": 1},
+            "org_id": {"type": "string", "minLength": 1}, "question": {"type": "string", "minLength": 1}
+          }
+        }
+      }
+    },
+    "scheme": {
+      "type": "object",
+      "required": ["id", "name", "version", "rules", "knowledge_ids", "material_types", "scope", "report"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"},
+        "name": {"type": "string"},
+        "version": {"type": "integer", "minimum": 1},
+        "rules": {"type": "array", "items": {"$ref": "#/$defs/rule"}},
+        "knowledge_ids": {"type": "array", "items": {"type": "string"}},
+        "material_types": {"type": "array", "items": {"type": "string"}},
+        "scope": {"type": "string"},
+        "report": {"type": "object", "required": ["title"], "properties": {"title": {"type": "string"}}}
+      }
+    },
+    "applicable_rule_ids": {"type": "array", "items": {"$ref": "#/$defs/id"}, "uniqueItems": true},
+    "excluded_rules": {"type": "array", "items": {"$ref": "#/$defs/rule", "required": ["reason"]}},
+    "summary": {"type": "object", "required": ["verdict", "counts", "total", "complete", "blockers"]},
+    "results": {"type": "array", "items": {"$ref": "#/$defs/result"}},
+    "ai_results": {"type": "array", "items": {"$ref": "#/$defs/result"}},
+    "evidence": {
+      "type": "array", "items": {
+        "type": "object", "required": ["id", "name", "sha256", "method", "text"],
+        "properties": {"id": {"$ref": "#/$defs/id"}, "locator": {"type": "object"}}
+      }
+    },
+    "facts": {"type": "array", "items": {"type": "object", "properties": {"evidence_id": {"$ref": "#/$defs/id"}, "evidence_ids": {"$ref": "#/$defs/refs"}}}},
+    "reviews": {"type": "array", "items": {"type": "object"}},
+    "knowledge_sources": {"type": "array", "items": {"type": "object", "properties": {"source": {"type": "string"}, "chunk_id": {"type": "string"}}}},
+    "technical_checks": {"type": "object"},
+    "trace": {"type": "object"}
+  },
+  "$defs": {
+    "id": {"type": "string", "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$"},
+    "refs": {"type": "array", "items": {"$ref": "#/$defs/id"}},
+    "rule": {"type": "object", "required": ["id", "name"], "properties": {"id": {"$ref": "#/$defs/id"}, "name": {"type": "string"}}},
+    "result": {
+      "type": "object",
+      "required": ["id", "verdict", "facts", "basis", "evidence_ids"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"},
+        "verdict": {"enum": ["通过", "不通过", "待人工判断"]},
+        "facts": {"type": "string"}, "basis": {"type": "string"}, "evidence_ids": {"$ref": "#/$defs/refs"}
+      }
+    }
+  }
+}

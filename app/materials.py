@@ -5,6 +5,9 @@ from PIL import Image, ImageOps
 from pypdf import PdfReader
 import pypdfium2 as pdfium
 from .store import DATA, ROOT
+from . import word_text
+
+SUPPORTED = frozenset({".pdf", ".docx", ".txt", ".jpg", ".jpeg", ".png", ".htm", ".html"})
 
 MAX_UPLOAD=160*1024*1024
 MAX_TOTAL=600*1024*1024
@@ -78,7 +81,7 @@ def unpack(source, folder):
             data=z.read(i);sha=digest(data);row['sha256']=sha
             suffix=Path(name).suffix.lower()
             resource=any(p.endswith('_files') for p in PurePosixPath(name).parts)
-            business=not resource and suffix in ('.pdf','.jpg','.jpeg','.png','.htm','.html')
+            business=not resource and suffix in SUPPORTED
             if business and sha in seen:
                 row.update(status='重复业务文件',document_id=seen[sha]);manifest.append(row);continue
             ident=f'D{len(docs)+1:03d}' if business else f'R{index:04d}'
@@ -91,7 +94,7 @@ def unpack(source, folder):
                 # Linked offline HTML may contain the actual form. Treat as plan pages, not new business files.
                 row['text']=html_text(data)[:100000]
             manifest.append(row)
-    if not docs:raise ValueError('未发现支持的PDF、HTML或图片业务材料')
+    if not docs:raise ValueError('未发现支持的 PDF、DOCX、文本、HTML 或图片材料')
     # Stable evidence identifiers make packaging variants comparable without trusting names.
     docs.sort(key=lambda d:d['sha256'])
     mapping={d['id']:f'D{i+1:03d}' for i,d in enumerate(docs)}
@@ -108,7 +111,7 @@ def recognize(docs,manifest,folder,progress):
     evidence=[];ocr_jobs=[];cache_dir=DATA/'recognition-cache';cache_dir.mkdir(exist_ok=True)
     for idx,d in enumerate(docs):
         progress(idx,len(docs),d['name'])
-        file=Path(d['path']);pages=[]
+        file=Path(d['path']);pages=[];locators=[]
         try:
             if d['type']=='.pdf':
                 reader=PdfReader(file);pdf=pdfium.PdfDocument(str(file))
@@ -119,6 +122,17 @@ def recognize(docs,manifest,folder,progress):
                     bitmap=p.render(scale=min(2.0,1900/max(w,h)));image=bitmap.to_pil();thumbnail(image,dest);bitmap.close();p.close()
                     pages.append((txt,dest,'PDF文本' if len(txt.strip())>25 else 'Windows OCR'))
                 pdf.close()
+            elif d['type']=='.docx':
+                for text, locator in word_text.extract(file):
+                    pages.append((text,None,'Word 正文'))
+                    locators.append(locator)
+            elif d['type']=='.txt':
+                content=file.read_text(encoding='utf-8-sig')
+                if not content.strip() or len(content)>500_000:
+                    raise ValueError('文本内容为空或超过 50 万字符')
+                for offset in range(0,len(content),8000):
+                    pages.append((content[offset:offset+8000],None,'文本原文'))
+                    locators.append({'type':'clause','clause':f'字符 {offset+1}–{min(offset+8000,len(content))}'})
             elif d['type'] in ('.htm','.html'):
                 txt=html_text(file.read_bytes())
                 resources=sorted([(Path(m['name']).name,m['text']) for m in manifest if m.get('text') and len(m['text'].strip())>50],key=lambda x:(x[0],digest(x[1].encode())))
@@ -136,6 +150,7 @@ def recognize(docs,manifest,folder,progress):
                 pages.append(('',dest,'Windows OCR'))
             for j,(txt,img,method) in enumerate(pages):
                 e={'id':f'{d["id"]}-P{j+1}','document_id':d['id'],'name':d['name'],'page':j+1,'category':d['category'],'text':txt,'image':str(img) if img else '', 'method':method,'lines':[],'error':'','confirmed':False,'sha256':d['sha256']}
+                if locators:e['locator']=locators[j]
                 if method=='Windows OCR':
                     key=digest(img.read_bytes())+'_windows_v1';e['cache_key']=key
                     cached=cache_dir/(key+'.json')

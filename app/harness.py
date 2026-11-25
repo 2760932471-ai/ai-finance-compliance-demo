@@ -23,13 +23,14 @@ def inspect(results,rules,evidence):
     if any(not isinstance(r,dict) or not isinstance(r.get('id'),str) for r in results):extra.append('结果包含无效条目或编号')
     return accepted,errors,extra
 
-def execute(rules,evidence,knowledge,calculations,on_trace=lambda x:None,infer=None):
+def execute(rules,evidence,knowledge,calculations,on_trace=lambda x:None,infer=None,scheme=None,task=None):
     infer=infer or model.infer
+    if not rules: return [],{},[],[]
     pending=list(rules);accepted={};metas=[];traces=[];repair={}
     for attempt in range(1,3):
-        prompt=model.rule_prompt(pending,evidence,knowledge,calculations)
+        prompt=model.rule_prompt(pending,evidence,knowledge,calculations,scheme,task)
         if repair:prompt+='\n前次校验失败，仅修复本次请求条目：'+json.dumps(repair,ensure_ascii=False)
-        trace={'id':store.uid(),'version':VERSION,'group':'T1全部规则' if len({r['group'] for r in rules})>1 else rules[0]['group'],'attempt':attempt,'rule_ids':[r['id'] for r in pending],'input_hash':hashlib.sha256(prompt.encode()).hexdigest(),'time':store.now(),'evidence_count':len(evidence),'checks':['规则覆盖','结论枚举','证据存在','事实与依据','通过必须有证据']}
+        trace={'id':store.uid(),'version':VERSION,'group':(scheme['name'] if scheme else 'T1全部规则') if len({r['group'] for r in rules})>1 else rules[0]['group'],'attempt':attempt,'rule_ids':[r['id'] for r in pending],'input_hash':hashlib.sha256(prompt.encode()).hexdigest(),'time':store.now(),'evidence_count':len(evidence),'checks':['规则覆盖','结论枚举','证据存在','事实与依据','通过必须有证据']}
         start=time.monotonic()
         try:
             value,meta=infer(prompt,model.RESULT_SCHEMA,[e['image'] for e in evidence if e.get('image')],timeout=int(os.getenv('MODEL_TIMEOUT','600')),force=attempt>1)
@@ -42,7 +43,8 @@ def execute(rules,evidence,knowledge,calculations,on_trace=lambda x:None,infer=N
         trace['seconds']=round(time.monotonic()-start,2);traces.append(trace);on_trace(trace)
         if not pending:break
         # Configuration/authentication failures cannot be repaired by prompting.
-        if any('配置不兼容' in x or '登录失效' in x or '用量受限' in x for x in repair.values()):break
+        fatal_reasons=('配置不兼容','登录失效','用量受限','客户端写入受限','当前为离线演示','未找到可用的Codex')
+        if any(reason in message for message in repair.values() for reason in fatal_reasons):break
     return [accepted[r['id']] for r in rules if r['id'] in accepted],repair,metas,traces
 
 def coverage(results,rules,evidence):

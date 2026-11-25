@@ -37,7 +37,7 @@ curl http://127.0.0.1:8765/api/compliance/tools/call \
 
 ## 原件事实桥接
 
-POST `/api/compliance/capture` 接受 `{row,source_run,evidence_ids,actor,note,revision,replace_demo}`。row为完整业务字段，revision使用dataset.revision。首次替换内置虚构数据必须明确replace_demo=true；后续追加时拒绝重复业务单号。原件引用必须存在且来源运行已完成材料处理。记录来源、摘要和确认依据。导入业务中的provenance引用也必须通过同样的来源检查。
+POST `/api/compliance/capture` 接受 `{row,source_run,evidence_ids,actor,note,revision,replace_demo}`。row为完整业务字段，revision使用dataset.revision。首次替换内置虚构数据必须明确replace_demo=true；后续追加时拒绝重复业务单号。原件引用必须存在且来源运行已完成材料处理。记录来源、摘要和确认依据。逐字段引用保存在 row.provenance.field_evidence，关系引用保存在 relation_evidence，evidence_index 保存原文位置。验收为 null 表示尚待核实。导入业务中的provenance引用也必须通过同样的来源检查。
 
 原接口 `/api/upload`、`/api/runs/{id}`、`/api/runs/{id}/report`、原件页图片/下载接口保持原有路径和会话要求。证据深链接为 `/#run/{id}/evidence/{evidence_id}`。
 
@@ -66,3 +66,16 @@ POST `/api/compliance/capture` 接受 `{row,source_run,evidence_ids,actor,note,r
 - POST `/api/compliance/graph-scenario`：`revision`，将当前独立图谱切换为内置演示场景。
 
 图谱每条记录必须包含id/name/supplier/bank_account/source_kind/source_note。source_kind为source（材料待核实）、synthetic（演示生成）或anonymized（匿名化）；amount允许null，person缺失时不构造虚假共同经办人。原业务记录与原审核结论保持独立。
+
+
+## 多场景审核与监管（v0.8）
+
+- `GET /api/schemes` 返回可用于新项目的发布版；`GET /api/schemes/manage`、`GET /api/schemes/{id}` 提供草稿、修订号、试跑结果和版本历史。
+- `POST /api/schemes/{id}/save` 传 `revision,draft`，`/trial` 可传带预期的 `samples`，`/publish` 传 `revision,note`。服务校验修订号及当前样本的实际输出；变更的启用项须受试跑覆盖。
+- `POST /api/upload` 支持原 ZIP，也可传单文件字节并设置 URL 编码的 `X-Filename`。新项目可传 `X-Scheme-Id`，已有项目传 `X-Project-Id`，可选 `X-Business-Id`。补证、纠错和重试从原审核发起，继承业务标识、项目和方案版本。历史缺省方案为财务 T1 v1。
+- 知识管理和测试召回支持 `scheme_id`，GET 使用查询参数，POST 使用 JSON。费用、合同和载具分开检索；真实审核只使用方案范围内发布的知识并冻结引用。
+- `GET /api/supervision/state` 返回当前组织、口径、指标、贡献流水及核查事项。模板下载为 `GET /api/supervision/template`，来源记录在 `GET /api/supervision/evidence?id=...`。
+- `POST /api/supervision/import` 导入流水；`/assign` 派发核查；`/transition` 记录反馈、退回、整改、排除、复验。反馈可附 `run_id,evidence_ids` 引用审核证据。缺组织标识的项目须由经办人明确确认归属。
+- 以 `--summary-only` 启动的入口开放 `/`、`/health` 和 `/api/supervision/summary`。只返回聚合指标，拒绝全部明细与原件访问。业务端的写操作仍须有效的本机会话与同源请求。
+
+定向合同核验在上传时附带 `X-Supervision-Task` 核查单号。服务校验任务状态、项目组织和方案，并在运行中保存 `supervision_task` 问题与付款流水号。补证和重试继承此引用；责任人选择证据后提交核验反馈。

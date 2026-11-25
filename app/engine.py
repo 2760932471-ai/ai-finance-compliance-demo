@@ -3,9 +3,9 @@ from collections import Counter
 from pathlib import Path
 from decimal import Decimal,InvalidOperation
 from datetime import datetime
-from . import knowledge as knowledge_service,store,materials,model,harness,decisions,recognition,checks
+from . import knowledge as knowledge_service,store,materials,model,harness,decisions,recognition,checks,schemes
 
-RULES=json.loads((Path(__file__).parent/'rules.json').read_text(encoding='utf-8'))
+RULES=schemes.FINANCE_RULES
 STATES=('通过','不通过','待人工判断')
 
 def normalize(text):
@@ -64,9 +64,18 @@ def deterministic(run):
     if mismatches:make('T1-03-01','待人工判断','OCR识别的日期与星期存在矛盾候选，需对照原图确认。',mismatches,'程序仅验证OCR文字的内部一致性，尚不足以断定原图错误。','核实照片原始水印；确认后重新审核。')
     return out
 
+def finance_checks(run,rules):
+    """Hard-coded T1 checks apply only to their original normative conditions."""
+    standards={r['id']:r for r in RULES}
+    validated={r['id'] for r in rules
+               if r['id'] in standards and all(r.get(k)==standards[r['id']].get(k)
+                                               for k in ('principle','pass_condition','fail_condition','manual_condition'))}
+    return {rid:result for rid,result in deterministic(run).items() if rid in validated}
+
+
 def fallback(rule,es,why):
     cats={'T1-01':['合同','报销主单','活动方案'],'T1-02':['合同','支付凭证','报销主单','报销面单','发票'],'T1-03':['现场照片','报销面单','报销主单','合同'],'T1-04':['支付凭证','报销主单','发票','现场照片'],'T1-05':['合同','支付凭证','报销主单','现场照片']}
-    relevant=[e for e in es if e['category'] in cats[rule['group']]]
+    relevant=([e for e in es if e['category'] in cats[rule['group']]] if rule['group'] in cats else es)
     return {'id':rule['id'],'verdict':'待人工判断','facts':f'已整理{len(relevant)}个相关材料页；本条需核对：{rule["principle"]}','evidence_ids':[e['id'] for e in relevant[:8]],'basis':why,'missing':'' if relevant else '材料缺失：未找到本条相关材料类别。','suggestion':'查看关联原件并完成本条人工复核。','engine':'待复核','execution':'pending' if '模型' in why else 'completed'}
 
 def validate_results(results,rules,es):
@@ -93,10 +102,12 @@ def summary(run):
 
 def summarize_results(results,rules):
     counts={s:sum(r['verdict']==s for r in results) for s in STATES}
-    incomplete=len(results)!=65 or any(r.get('execution')!='completed' for r in results)
+    expected=[rule['id'] for rule in rules]
+    returned=[result['id'] for result in results]
+    incomplete=not expected or Counter(expected)!=Counter(returned) or any(r.get('execution')!='completed' for r in results)
     verdict='不通过' if counts['不通过'] else '待人工判断' if counts['待人工判断'] or incomplete else '通过'
     risk={r['id']:r['risk'] for r in rules}
-    return {'counts':counts,'verdict':verdict,'total':len(results),'complete':not incomplete,'blockers':sum(r['verdict']=='不通过' and risk.get(r['id'])=='P0' for r in results),'reviewed':sum('review' in r for r in results)}
+    return {'counts':counts,'verdict':verdict,'expected':len(expected),'total':len(results),'complete':not incomplete,'blockers':sum(r['verdict']=='不通过' and risk.get(r['id'])=='P0' for r in results),'reviewed':sum('review' in r for r in results)}
 
 def update(run,phase,progress,message):
     run.update(phase=phase,progress=progress,updated_at=store.now());run.setdefault('events',[]).append({'time':store.now(),'message':message});store.put('run',run)
@@ -104,7 +115,13 @@ def update(run,phase,progress,message):
 def process(run_id):
     run=store.get('run',run_id);started=time.time();folder=store.DATA/'runs'/run_id;folder.mkdir(parents=True,exist_ok=True)
     try:
-        run.update(status='processing',error='',usage=[],results=[],traces=[],rules=RULES,rule_version=RULES[0]['version'],harness_version=harness.VERSION,app_version='0.4')
+        scheme = run.get('scheme_snapshot') or schemes.published(schemes.FINANCE,1)
+        finance = scheme['id']==schemes.FINANCE
+        version = scheme['rules'][0].get('version') if finance and scheme['version']==1 else None
+        run.update(status='processing',error='',usage=[],results=[],traces=[],rules=schemes.active_rules(scheme),
+                   rule_version=version or f"{scheme['id']}@{scheme['version']}",
+                   harness_version=harness.VERSION,app_version='0.8',scheme_snapshot=scheme,
+                   scheme_id=scheme['id'],scheme_version=scheme['version'])
         update(run,'整理材料',4,'正在检查原始压缩包与文件路径')
         manifest,docs=materials.unpack(Path(run['source']),folder/'files')
         run.update(manifest=manifest,documents=docs)
@@ -117,7 +134,7 @@ def process(run_id):
             update(run,'视觉识别',42+int(i/max(1,n)*3),message)
         def visual_record(meta):
             run['recognition_usage'].append(meta);run['usage'].append(meta);store.put('run',run)
-        recognition.enhance(es,docs,folder,visual_progress,visual_record)
+        recognition.enhance(es,docs,folder,visual_progress,visual_record,scheme=scheme)
         for correction in run.get('corrections',[]):
             page=correction.get('page',int(correction['evidence_id'].split('-P')[-1]))
             e=next((e for e in es if e['page']==page and e.get('sha256')==correction['sha256']),None)
@@ -125,50 +142,56 @@ def process(run_id):
             e.update(original_text=e.get('original_text',e['text']),text=correction['text'],method='人工校正',correction=correction,confirmed=True,error='')
         for d in docs:
             pages=[e for e in es if e['document_id']==d['id']]
-            d['category']=materials.classify(d['name'],'\n'.join(e['text'] for e in pages))
+            d['category']=schemes.classify(scheme,d['name'],'\n'.join(e['text'] for e in pages))
             for e in pages:e['category']=d['category']
             uncertain=[e for e in pages if e.get('error') or e.get('recognition',{}).get('status') in ('partial','unreadable','needs_review') and not e.get('confirmed')]
             d.update(status='识别待核对' if uncertain else '已识别',error='有不确定文字，请对照原图' if uncertain else '')
-        run.update(evidence=es,facts=facts_from(es))
-        calc=deterministic(run)
+        applicable_rules,omitted = schemes.applicable(scheme,es)
+        run.update(rules=applicable_rules,excluded_rules=omitted,evidence=es,
+                   facts=facts_from(es) if finance else schemes.extracted_facts(scheme,es))
+        calc=finance_checks(run,applicable_rules) if finance else {}
         run['technical_checks']=checks.collect(es,docs)
-        # Keep volatile timestamps out of model input so identical evidence remains cacheable.
+        # Stable inputs keep the existing T1 caches usable after migration.
         calc['_local_checks']={k:v for k,v in run['technical_checks'].items() if k!='checked_at'}
         run['calculations']=calc
-        recall=knowledge_service.retrieve(' '.join(r['name'] for r in RULES)+' '+ ' '.join(e.get('text','')[:200] for e in es)[:500],top_k=12,method='hybrid',docs=[d for d in store.all_items('knowledge') if not d.get('demo')])
+        query=' '.join(r['name'] for r in applicable_rules)+' '+ ' '.join(e.get('text','')[:200] for e in es)[:500]
+        recall=knowledge_service.retrieve((query.strip() or scheme['name'])[:2000],top_k=12,method='hybrid',docs=schemes.knowledge_docs(scheme))
         knowledge=recall['results']
         run['knowledge_snapshot']=knowledge
         run['knowledge_retrieval']={k:v for k,v in recall.items() if k!='results'}
-        update(run,'规则审核',46,'材料识别完成，正在核对全部65条规则；原件只传递一次')
+        total=len(applicable_rules)
+        update(run,'规则审核',46,f'材料识别完成，核对本次适用的 {total} 条审核项')
+        program_rules=[r for r in applicable_rules if r.get('method','model')!='model']
+        model_rules=[r for r in applicable_rules if r.get('method','model')=='model']
+        values={r['id']:schemes.field_result(r,es) for r in program_rules}
+        def traced(t):
+            run['traces'].append(t);store.put('run',run)
+        generated,errors,metas,_=harness.execute(model_rules,es,knowledge,calc,traced,scheme=scheme,task=run.get('supervision_task'))
+        run['usage'].extend(metas)
+        for result in generated:
+            result.update(engine='Codex AI',execution='completed')
+            values[result['id']]=result
         any_failure=False
-        for n,group in enumerate(['T1全部规则']):
-            rs=RULES
-            # A tentative OCR category must never hide an original from a rule group.
-            bundled=[dict(e) for e in es]
-            def traced(t):
-                run['traces'].append(t);store.put('run',run)
-            vals,errors,metas,_=harness.execute(rs,bundled,knowledge,calc,traced)
-            run['usage'].extend(metas)
-            for v in vals:v.update(engine='Codex AI',execution='completed')
-            valid_ids={v['id'] for v in vals}
-            for r in rs:
-                if r['id'] not in valid_ids:
-                    any_failure=True;vals.append(fallback(r,es,'模型执行未完成：'+errors.get(r['id'],'结果不完整')))
-            vals.sort(key=lambda v:v['id'])
-            for v in vals:
-                c=calc.get(v['id'])
-                if c and (c['verdict']=='不通过' or c['verdict']=='待人工判断' and v['verdict']=='通过'):v.update(c)
-                r=next(x for x in rs if x['id']==v['id']);v.update(name=r['name'],group=r['group'],risk=r['risk'],principle=r['principle'])
-            run['results'].extend(vals)
-            update(run,'规则审核',94,f'{group}已返回{len(vals)}条结果；总计{len(run["results"])}/65')
+        for rule in applicable_rules:
+            rid=rule['id']
+            value=values.get(rid)
+            if value is None:
+                any_failure=True
+                value=fallback(rule,es,'模型执行未完成：'+errors.get(rid,'结果不完整'))
+            override=calc.get(rid) if rule.get('method','model')=='model' else None
+            if override and (override['verdict']=='不通过' or override['verdict']=='待人工判断' and value['verdict']=='通过'):
+                value.update(override)
+            value.update(name=rule['name'],group=rule['group'],risk=rule['risk'],principle=rule['principle'])
+            run['results'].append(value)
+        update(run,'规则审核',94,f'已记录 {len(run["results"])}/{total} 条审核项结果')
         run['decision_input_results']=json.loads(json.dumps(run['results']))
         if decisions.config()['provider']!='off':update(run,'证据一致性复核',95,'正在独立核查证据支持度与规则结论')
         def decision_progress(count,total,record):
             run['decision_review']={**record,'status':'处理中'}
             update(run,'证据一致性复核',95+int(count/max(1,total)*4),f'独立决策模型已复核 {count}/{total} 项')
         run['decision_review']=decisions.check(run['results'],es,decision_progress)
-        run['quality']=harness.coverage(run['results'],RULES,es)
-        run.update(status='needs_attention' if any_failure else 'completed',duration=round(time.time()-started,1))
+        run['quality']=harness.coverage(run['results'],applicable_rules,es)
+        run.update(status='needs_attention' if any_failure or not applicable_rules else 'completed',duration=round(time.time()-started,1))
         update(run,'待人工复核',100,'逐项结果已保存；请检查待判断项并完成人工复核')
     except Exception as exc:
         run.update(status='failed',error=str(exc)[:500],duration=round(time.time()-started,1))
@@ -180,9 +203,9 @@ def chat(run,question,rule_id=''):
     eids={i for r in selected for i in r.get('evidence_ids',[])}
     originals=[e['image'] for e in es if e['id'] in eids and e.get('image')][:8] if rule_id else []
     evidence=[{'id':e['id'],'file':e['name'],'page':e['page'],'text':e['text'][:4000],'image_attached':e.get('image') in originals} for e in es if e['id'] in eids]
-    prompt=model.SYSTEM+'\n任务：根据当前项目结果解释问题，给出真实补证或识别纠错建议。不得改写凭证、补造事实或自动改判。未知信息明确说明。\n用户问题：'+question+'\n审核结果：'+json.dumps(selected,ensure_ascii=False)+'\n证据：'+json.dumps(evidence,ensure_ascii=False)+'\n生效知识：'+json.dumps(run.get('knowledge_snapshot',[]),ensure_ascii=False)
+    prompt=model.system_for(run.get('scheme_snapshot'))+model.task_context(run.get('supervision_task'))+'\n任务：根据当前项目结果解释问题，给出真实补证或识别纠错建议。不得改写凭证、补造事实或自动改判。未知信息明确说明。\n用户问题：'+question+'\n审核结果：'+json.dumps(selected,ensure_ascii=False)+'\n证据：'+json.dumps(evidence,ensure_ascii=False)+'\n生效知识：'+json.dumps(run.get('knowledge_snapshot',[]),ensure_ascii=False)
     if originals:prompt+='\n附图顺序对应证据中image_attached为true的条目。请用原图核对OCR，不把识别乱码当事实。'
     val,meta=model.infer(prompt,model.CHAT_SCHEMA,originals,timeout=300)
-    valid={e['id'] for e in es};ids={r['id'] for r in RULES}
+    valid={e['id'] for e in es};ids={r['id'] for r in run.get('rules',RULES)}
     if any(e not in valid for e in val['evidence_ids']) or any(r not in ids for r in val['rule_ids']):raise ValueError('回答引用无法核实，请重试')
     return store.put('chat',{'id':store.uid(),'run_id':run['id'],'question':question,'rule_id':rule_id,'time':store.now(),**val,'meta':meta})
