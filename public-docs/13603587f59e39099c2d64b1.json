@@ -1,0 +1,1 @@
+{"version": "0.5", "tools": ["query", "metrics", "graph", "path"], "authentication": "原应用 X-Session-Token 与同源校验", "scope": "本机工具调用，生产认证与gRPC尚未实现"}

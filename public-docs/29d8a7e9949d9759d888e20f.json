@@ -1,0 +1,433 @@
+{
+  "ai_results": [
+    {
+      "basis": "指定字段原文不一致，需核对差异与有效例外",
+      "engine": "程序字段核验",
+      "evidence_ids": [
+        "D002-P1",
+        "D001-P1"
+      ],
+      "execution": "completed",
+      "facts": "合同付款起算条件：交付后30日；模板付款起算条件：验收后30日",
+      "group": "条款比对",
+      "id": "CON-01",
+      "missing": "",
+      "name": "付款起算条件对照",
+      "principle": "对照明确标注的合同与模板付款起算条件；比较原文，差异交法务核实。",
+      "risk": "P1",
+      "suggestion": "请对照原件复核",
+      "verdict": "不通过"
+    },
+    {
+      "basis": "每个指定字段均有唯一的非空文字值",
+      "engine": "程序字段核验",
+      "evidence_ids": [
+        "D002-P1"
+      ],
+      "execution": "completed",
+      "facts": "甲方名称：示例一公司；乙方名称：示例青禾设备有限公司",
+      "group": "要素检查",
+      "id": "CON-02",
+      "missing": "",
+      "name": "签约主体要素",
+      "principle": "核对明确标注的甲方名称和乙方名称是否均可定位。",
+      "risk": "P1",
+      "suggestion": "",
+      "verdict": "通过"
+    },
+    {
+      "basis": "模型执行未完成：当前为离线演示，未调用主模型；启用AI模式后可重新审核",
+      "engine": "待复核",
+      "evidence_ids": [
+        "D001-P1",
+        "D002-P1"
+      ],
+      "execution": "pending",
+      "facts": "已整理2个相关材料页；本条需核对：对照实际条款与适用模板；偏离时核对例外批准材料、对象及适用期限，缺依据时转人工。",
+      "group": "条款比对",
+      "id": "CON-03",
+      "missing": "",
+      "name": "例外依据核验",
+      "principle": "对照实际条款与适用模板；偏离时核对例外批准材料、对象及适用期限，缺依据时转人工。",
+      "risk": "P1",
+      "suggestion": "查看关联原件并完成本条人工复核。",
+      "verdict": "待人工判断"
+    }
+  ],
+  "applicable_rule_ids": [
+    "CON-01",
+    "CON-02",
+    "CON-03"
+  ],
+  "evidence": [
+    {
+      "category": "标准模板",
+      "confirmed": false,
+      "document_id": "D001",
+      "error": "",
+      "id": "D001-P1",
+      "lines": [],
+      "locator": {
+        "clause": "字符 1–24",
+        "type": "clause"
+      },
+      "method": "文本原文",
+      "name": "标准模板.txt",
+      "page": 1,
+      "sha256": "09aee401b46b7d641a9c81a7ffee3b59ed658878bf76246df388e9fdd3aa6b3d",
+      "text": "虚构采购合同模板\n模板付款起算条件：验收后30日"
+    },
+    {
+      "category": "待审合同",
+      "confirmed": false,
+      "document_id": "D002",
+      "error": "",
+      "id": "D002-P1",
+      "lines": [],
+      "locator": {
+        "clause": "字符 1–86",
+        "type": "clause"
+      },
+      "method": "文本原文",
+      "name": "待审合同.txt",
+      "page": 1,
+      "sha256": "a1a75f7df38a39eaf038cfb14cbb52bd1cb4ccf21a8c1b5dc2cb5e025704a344",
+      "text": "虚构合同 HT-2026-071。第四条：验收前累计付款上限 40,000.00 元。\n合同付款起算条件：交付后30日\n甲方名称：示例一公司\n乙方名称：示例青禾设备有限公司"
+    }
+  ],
+  "excluded_rules": [],
+  "facts": [
+    {
+      "category": "标准模板",
+      "confirmed": false,
+      "evidence_id": "D001-P1",
+      "id": "41fa8eea6ec74b6c",
+      "label": "模板付款起算条件",
+      "locator": {
+        "clause": "字符 1–24",
+        "field": "模板付款起算条件",
+        "type": "clause"
+      },
+      "source": "按方案定位原文标签",
+      "value": "验收后30日"
+    },
+    {
+      "category": "待审合同",
+      "confirmed": false,
+      "evidence_id": "D002-P1",
+      "id": "7acf89ec6ed042c8",
+      "label": "合同付款起算条件",
+      "locator": {
+        "clause": "字符 1–86",
+        "field": "合同付款起算条件",
+        "type": "clause"
+      },
+      "source": "按方案定位原文标签",
+      "value": "交付后30日"
+    },
+    {
+      "category": "待审合同",
+      "confirmed": false,
+      "evidence_id": "D002-P1",
+      "id": "dd582ec39eb24fbe",
+      "label": "甲方名称",
+      "locator": {
+        "clause": "字符 1–86",
+        "field": "甲方名称",
+        "type": "clause"
+      },
+      "source": "按方案定位原文标签",
+      "value": "示例一公司"
+    },
+    {
+      "category": "待审合同",
+      "confirmed": false,
+      "evidence_id": "D002-P1",
+      "id": "744345f582f6428d",
+      "label": "乙方名称",
+      "locator": {
+        "clause": "字符 1–86",
+        "field": "乙方名称",
+        "type": "clause"
+      },
+      "source": "按方案定位原文标签",
+      "value": "示例青禾设备有限公司"
+    }
+  ],
+  "id": "9f883cd1fe064a7a",
+  "knowledge_sources": [
+    {
+      "chunk_id": "94bc1da6c80b8ad2",
+      "end": 43,
+      "id": "ab6ed11c94b84ab9",
+      "line": 1,
+      "source": "内置虚构业务手册",
+      "start": 0,
+      "title": "虚构合同条款核验口径",
+      "version": "v1"
+    }
+  ],
+  "project": {
+    "id": "28b10fe207514a52",
+    "name": "虚构样例 · 采购合同核对"
+  },
+  "results": [
+    {
+      "basis": "指定字段原文不一致，需核对差异与有效例外",
+      "engine": "程序字段核验",
+      "evidence_ids": [
+        "D002-P1",
+        "D001-P1"
+      ],
+      "execution": "completed",
+      "facts": "合同付款起算条件：交付后30日；模板付款起算条件：验收后30日",
+      "group": "条款比对",
+      "id": "CON-01",
+      "missing": "",
+      "name": "付款起算条件对照",
+      "principle": "对照明确标注的合同与模板付款起算条件；比较原文，差异交法务核实。",
+      "risk": "P1",
+      "suggestion": "请对照原件复核",
+      "verdict": "不通过"
+    },
+    {
+      "basis": "每个指定字段均有唯一的非空文字值",
+      "engine": "程序字段核验",
+      "evidence_ids": [
+        "D002-P1"
+      ],
+      "execution": "completed",
+      "facts": "甲方名称：示例一公司；乙方名称：示例青禾设备有限公司",
+      "group": "要素检查",
+      "id": "CON-02",
+      "missing": "",
+      "name": "签约主体要素",
+      "principle": "核对明确标注的甲方名称和乙方名称是否均可定位。",
+      "risk": "P1",
+      "suggestion": "",
+      "verdict": "通过"
+    },
+    {
+      "basis": "模型执行未完成：当前为离线演示，未调用主模型；启用AI模式后可重新审核",
+      "engine": "待复核",
+      "evidence_ids": [
+        "D001-P1",
+        "D002-P1"
+      ],
+      "execution": "pending",
+      "facts": "已整理2个相关材料页；本条需核对：对照实际条款与适用模板；偏离时核对例外批准材料、对象及适用期限，缺依据时转人工。",
+      "group": "条款比对",
+      "id": "CON-03",
+      "missing": "",
+      "name": "例外依据核验",
+      "principle": "对照实际条款与适用模板；偏离时核对例外批准材料、对象及适用期限，缺依据时转人工。",
+      "risk": "P1",
+      "suggestion": "查看关联原件并完成本条人工复核。",
+      "verdict": "待人工判断"
+    }
+  ],
+  "reviews": [],
+  "run": {
+    "app_version": "0.8",
+    "business_id": "BUS-ef89a1335343447b",
+    "confirmed_at": "",
+    "confirmed_by": "",
+    "created_at": "2026-11-25T17:40:37+08:00",
+    "id": "ef89a1335343447b",
+    "parent_run": "",
+    "project_id": "28b10fe207514a52",
+    "rule_version": "contract@1",
+    "source_hash": "a1413ab16c17d710b3d56268d09a168c18081fa285363da865b0dc2441df14b8",
+    "status": "needs_attention",
+    "supervision_task": {
+      "id": "HCD-0001",
+      "org_id": "ORG-DEMO",
+      "question": "核对付款当日的验收状态、上限和补充协议生效日期。",
+      "row_id": "PAY-002"
+    }
+  },
+  "schema_version": "audit-report-v2",
+  "scheme": {
+    "id": "contract",
+    "knowledge_ids": [],
+    "material_types": [
+      "待审合同",
+      "标准模板",
+      "例外审批"
+    ],
+    "name": "合同审核（示例）",
+    "report": {
+      "title": "合同条款审核报告"
+    },
+    "rules": [
+      {
+        "enabled": true,
+        "fields": [
+          "合同付款起算条件",
+          "模板付款起算条件"
+        ],
+        "group": "条款比对",
+        "group_name": "条款比对",
+        "id": "CON-01",
+        "method": "compare_fields",
+        "name": "付款起算条件对照",
+        "principle": "对照明确标注的合同与模板付款起算条件；比较原文，差异交法务核实。",
+        "risk": "P1"
+      },
+      {
+        "enabled": true,
+        "fields": [
+          "甲方名称",
+          "乙方名称"
+        ],
+        "group": "要素检查",
+        "group_name": "要素检查",
+        "id": "CON-02",
+        "method": "required_fields",
+        "name": "签约主体要素",
+        "principle": "核对明确标注的甲方名称和乙方名称是否均可定位。",
+        "risk": "P1"
+      },
+      {
+        "enabled": true,
+        "fields": [],
+        "group": "条款比对",
+        "group_name": "条款比对",
+        "id": "CON-03",
+        "method": "model",
+        "name": "例外依据核验",
+        "principle": "对照实际条款与适用模板；偏离时核对例外批准材料、对象及适用期限，缺依据时转人工。",
+        "risk": "P1"
+      }
+    ],
+    "scope": "对照待审合同与适用模板，记录条款差异和缺失依据",
+    "version": 1
+  },
+  "summary": {
+    "blockers": 0,
+    "complete": false,
+    "counts": {
+      "不通过": 1,
+      "待人工判断": 1,
+      "通过": 1
+    },
+    "expected": 3,
+    "reviewed": 0,
+    "total": 3,
+    "verdict": "不通过"
+  },
+  "technical_checks": {
+    "calendar": [],
+    "checked_at": "2026-11-25T17:40:37+08:00",
+    "note": "仅核对识别文字的公历一致性与原图元数据；尺寸相同、缺EXIF或水印匹配均不能单独认定真伪。",
+    "photo_metadata": [],
+    "repeated_sizes": [],
+    "version": "local-evidence-checks-v1"
+  },
+  "time": "2026-11-25T17:40:37+08:00",
+  "trace": {
+    "corrections": [],
+    "decision_review": {
+      "count": 0,
+      "errors": [],
+      "mode": "shadow",
+      "model": "",
+      "provider": "off",
+      "scope": "all",
+      "status": "未启用",
+      "target_count": 3,
+      "threshold": 0.8,
+      "threshold_calibrated": false,
+      "time": "2026-11-25T17:40:37+08:00",
+      "total_rules": 3,
+      "traces": [],
+      "version": "decision-review-v1"
+    },
+    "harness_version": "audit-harness-v3",
+    "knowledge_snapshot": [
+      {
+        "bm25": 2.424749,
+        "chunk_id": "94bc1da6c80b8ad2",
+        "cosine": 0.481566,
+        "end": 43,
+        "id": "ab6ed11c94b84ab9",
+        "index": 1,
+        "line": 1,
+        "matched_terms": [
+          "付款",
+          "合同",
+          "条件",
+          "模板",
+          "款起",
+          "算条",
+          "起算",
+          "验收"
+        ],
+        "score": 0.594787,
+        "start": 0,
+        "text": "核对待审合同的付款起算条件与适用模板。付款日期应结合验收记录及该日期已生效的补充协议。",
+        "title": "虚构合同条款核验口径",
+        "version": "v1"
+      }
+    ],
+    "manifest": [
+      {
+        "document_id": "D002",
+        "index": 0,
+        "name": "待审合同.txt",
+        "original_name": "待审合同.txt",
+        "sha256": "a1a75f7df38a39eaf038cfb14cbb52bd1cb4ccf21a8c1b5dc2cb5e025704a344",
+        "size": 202,
+        "status": "业务文件"
+      },
+      {
+        "document_id": "D001",
+        "index": 1,
+        "name": "标准模板.txt",
+        "original_name": "标准模板.txt",
+        "sha256": "09aee401b46b7d641a9c81a7ffee3b59ed658878bf76246df388e9fdd3aa6b3d",
+        "size": 66,
+        "status": "业务文件"
+      }
+    ],
+    "quality": {
+      "checked_at": "2026-11-25T17:40:37+08:00",
+      "errors": {},
+      "expected": 3,
+      "extra_ids": [],
+      "passed": true,
+      "returned": 3,
+      "valid": 3,
+      "version": "audit-harness-v3"
+    },
+    "recognition_usage": [],
+    "recognition_version": "visual-transcription-v2",
+    "traces": [
+      {
+        "accepted": 0,
+        "attempt": 1,
+        "checks": [
+          "规则覆盖",
+          "结论枚举",
+          "证据存在",
+          "事实与依据",
+          "通过必须有证据"
+        ],
+        "errors": {
+          "CON-03": "当前为离线演示，未调用主模型；启用AI模式后可重新审核"
+        },
+        "evidence_count": 2,
+        "group": "条款比对",
+        "id": "7488084c500a4621",
+        "input_hash": "9b0a6945d994887b1dcd6e0fc9643d4f8b655e1a72ae74f976168afabc734cd4",
+        "rule_ids": [
+          "CON-03"
+        ],
+        "seconds": 0.0,
+        "status": "failed",
+        "time": "2026-11-25T17:40:37+08:00",
+        "version": "audit-harness-v3"
+      }
+    ]
+  }
+}

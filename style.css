@@ -13,3 +13,5 @@
 .brand{font-size:17px;letter-spacing:0;gap:9px}.brand>span:not(.brandmark){white-space:nowrap}.brand small{font-size:9px;letter-spacing:.4px}.brandmark{width:32px;min-width:32px;height:34px}
 
 .fact-evidence{border:1px solid #dbe2ed;border-radius:10px;padding:16px;margin:16px 0;max-height:230px;overflow:auto}.fact-evidence label{display:flex;align-items:center;gap:10px;margin:8px 0}.fact-evidence input,.fact-consent input{width:18px;min-height:18px}.fact-consent{display:flex;gap:10px;align-items:center;margin:16px 0}.tabs.bordered{flex-wrap:wrap}#compliance-host{display:block;min-width:0}
+/* The generic .field display must not override the project's conditional field. */
+#project-name-field[hidden]{display:none}

@@ -1,0 +1,414 @@
+{
+  "ai_results": [
+    {
+      "basis": "指定字段原文一致",
+      "engine": "程序字段核验",
+      "evidence_ids": [
+        "D002-P1",
+        "D001-P1"
+      ],
+      "execution": "completed",
+      "facts": "登记载具编号：ZJ-022；现场载具编号：ZJ-022",
+      "group": "标识核验",
+      "id": "CAR-01",
+      "missing": "",
+      "name": "登记与现场标识",
+      "principle": "核对登记标识和现场标识文字，无法明确辨认时应补证。",
+      "risk": "P1",
+      "suggestion": "",
+      "verdict": "通过"
+    },
+    {
+      "basis": "每个指定字段均有唯一的非空文字值",
+      "engine": "程序字段核验",
+      "evidence_ids": [
+        "D002-P1"
+      ],
+      "execution": "completed",
+      "facts": "登记单位：示例运输公司；登记载具编号：ZJ-022",
+      "group": "登记核验",
+      "id": "CAR-02",
+      "missing": "",
+      "name": "登记信息要素",
+      "principle": "检查登记单位与登记载具编号是否均可定位。",
+      "risk": "P1",
+      "suggestion": "",
+      "verdict": "通过"
+    },
+    {
+      "basis": "模型执行未完成：当前为离线演示，未调用主模型；启用AI模式后可重新审核",
+      "engine": "待复核",
+      "evidence_ids": [
+        "D001-P1",
+        "D002-P1"
+      ],
+      "execution": "pending",
+      "facts": "已整理2个相关材料页；本条需核对：核查现场照片中对象与标识的可辨认程度，对照登记文件。遮挡、无图或无法确认对应关系时转人工。",
+      "group": "现场核验",
+      "id": "CAR-03",
+      "missing": "",
+      "name": "现场证据可核验性",
+      "principle": "核查现场照片中对象与标识的可辨认程度，对照登记文件。遮挡、无图或无法确认对应关系时转人工。",
+      "risk": "P1",
+      "suggestion": "查看关联原件并完成本条人工复核。",
+      "verdict": "待人工判断"
+    }
+  ],
+  "applicable_rule_ids": [
+    "CAR-01",
+    "CAR-02",
+    "CAR-03"
+  ],
+  "evidence": [
+    {
+      "category": "现场凭证",
+      "confirmed": false,
+      "document_id": "D001",
+      "error": "",
+      "id": "D001-P1",
+      "lines": [],
+      "locator": {
+        "clause": "字符 1–22",
+        "type": "clause"
+      },
+      "method": "文本原文",
+      "name": "现场凭证.txt",
+      "page": 1,
+      "sha256": "1c123ed962319c77134163d155f2bdeebee0fa6d56bb11e4524a51f68a665e80",
+      "text": "虚构现场签收凭证\n现场载具编号：ZJ-022"
+    },
+    {
+      "category": "登记记录",
+      "confirmed": false,
+      "document_id": "D002",
+      "error": "",
+      "id": "D002-P1",
+      "lines": [],
+      "locator": {
+        "clause": "字符 1–32",
+        "type": "clause"
+      },
+      "method": "文本原文",
+      "name": "登记记录.txt",
+      "page": 1,
+      "sha256": "25f8e2736793220662ee64f04905ec013845ee4b1b2c934427e520c7025426cc",
+      "text": "虚构登记清单\n登记载具编号：ZJ-022\n登记单位：示例运输公司"
+    }
+  ],
+  "excluded_rules": [],
+  "facts": [
+    {
+      "category": "现场凭证",
+      "confirmed": false,
+      "evidence_id": "D001-P1",
+      "id": "509ba676f46b487a",
+      "label": "现场载具编号",
+      "locator": {
+        "clause": "字符 1–22",
+        "field": "现场载具编号",
+        "type": "clause"
+      },
+      "source": "按方案定位原文标签",
+      "value": "ZJ-022"
+    },
+    {
+      "category": "登记记录",
+      "confirmed": false,
+      "evidence_id": "D002-P1",
+      "id": "0e648d51c1d541ae",
+      "label": "登记载具编号",
+      "locator": {
+        "clause": "字符 1–32",
+        "field": "登记载具编号",
+        "type": "clause"
+      },
+      "source": "按方案定位原文标签",
+      "value": "ZJ-022"
+    },
+    {
+      "category": "登记记录",
+      "confirmed": false,
+      "evidence_id": "D002-P1",
+      "id": "cb88c8d1309a46b2",
+      "label": "登记单位",
+      "locator": {
+        "clause": "字符 1–32",
+        "field": "登记单位",
+        "type": "clause"
+      },
+      "source": "按方案定位原文标签",
+      "value": "示例运输公司"
+    }
+  ],
+  "id": "b893126b0c984bd7",
+  "knowledge_sources": [
+    {
+      "chunk_id": "14fb0583c9eef332",
+      "end": 39,
+      "id": "9c78f4482bee4131",
+      "line": 1,
+      "source": "内置虚构业务手册",
+      "start": 0,
+      "title": "虚构载具核验口径",
+      "version": "v1"
+    }
+  ],
+  "project": {
+    "id": "67bc35fe76d84203",
+    "name": "虚构样例 · 载具资料核对"
+  },
+  "results": [
+    {
+      "basis": "指定字段原文一致",
+      "engine": "程序字段核验",
+      "evidence_ids": [
+        "D002-P1",
+        "D001-P1"
+      ],
+      "execution": "completed",
+      "facts": "登记载具编号：ZJ-022；现场载具编号：ZJ-022",
+      "group": "标识核验",
+      "id": "CAR-01",
+      "missing": "",
+      "name": "登记与现场标识",
+      "principle": "核对登记标识和现场标识文字，无法明确辨认时应补证。",
+      "risk": "P1",
+      "suggestion": "",
+      "verdict": "通过"
+    },
+    {
+      "basis": "每个指定字段均有唯一的非空文字值",
+      "engine": "程序字段核验",
+      "evidence_ids": [
+        "D002-P1"
+      ],
+      "execution": "completed",
+      "facts": "登记单位：示例运输公司；登记载具编号：ZJ-022",
+      "group": "登记核验",
+      "id": "CAR-02",
+      "missing": "",
+      "name": "登记信息要素",
+      "principle": "检查登记单位与登记载具编号是否均可定位。",
+      "risk": "P1",
+      "suggestion": "",
+      "verdict": "通过"
+    },
+    {
+      "basis": "模型执行未完成：当前为离线演示，未调用主模型；启用AI模式后可重新审核",
+      "engine": "待复核",
+      "evidence_ids": [
+        "D001-P1",
+        "D002-P1"
+      ],
+      "execution": "pending",
+      "facts": "已整理2个相关材料页；本条需核对：核查现场照片中对象与标识的可辨认程度，对照登记文件。遮挡、无图或无法确认对应关系时转人工。",
+      "group": "现场核验",
+      "id": "CAR-03",
+      "missing": "",
+      "name": "现场证据可核验性",
+      "principle": "核查现场照片中对象与标识的可辨认程度，对照登记文件。遮挡、无图或无法确认对应关系时转人工。",
+      "risk": "P1",
+      "suggestion": "查看关联原件并完成本条人工复核。",
+      "verdict": "待人工判断"
+    }
+  ],
+  "reviews": [],
+  "run": {
+    "app_version": "0.8",
+    "business_id": "BUS-933a6e087ddf459d",
+    "confirmed_at": "",
+    "confirmed_by": "",
+    "created_at": "2026-11-25T17:40:38+08:00",
+    "id": "933a6e087ddf459d",
+    "parent_run": "",
+    "project_id": "67bc35fe76d84203",
+    "rule_version": "carrier@1",
+    "source_hash": "efd618b8629f7b00c939d78fe0f48ad791771e6419cd3faeb8071b20ff1a7738",
+    "status": "needs_attention"
+  },
+  "schema_version": "audit-report-v2",
+  "scheme": {
+    "id": "carrier",
+    "knowledge_ids": [],
+    "material_types": [
+      "登记记录",
+      "现场凭证",
+      "检验记录"
+    ],
+    "name": "载具审核（示例）",
+    "report": {
+      "title": "载具核验报告"
+    },
+    "rules": [
+      {
+        "enabled": true,
+        "fields": [
+          "登记载具编号",
+          "现场载具编号"
+        ],
+        "group": "标识核验",
+        "group_name": "标识核验",
+        "id": "CAR-01",
+        "method": "compare_fields",
+        "name": "登记与现场标识",
+        "principle": "核对登记标识和现场标识文字，无法明确辨认时应补证。",
+        "risk": "P1"
+      },
+      {
+        "enabled": true,
+        "fields": [
+          "登记单位",
+          "登记载具编号"
+        ],
+        "group": "登记核验",
+        "group_name": "登记核验",
+        "id": "CAR-02",
+        "method": "required_fields",
+        "name": "登记信息要素",
+        "principle": "检查登记单位与登记载具编号是否均可定位。",
+        "risk": "P1"
+      },
+      {
+        "enabled": true,
+        "fields": [],
+        "group": "现场核验",
+        "group_name": "现场核验",
+        "id": "CAR-03",
+        "method": "model",
+        "name": "现场证据可核验性",
+        "principle": "核查现场照片中对象与标识的可辨认程度，对照登记文件。遮挡、无图或无法确认对应关系时转人工。",
+        "risk": "P1"
+      }
+    ],
+    "scope": "对照登记材料与现场凭证，核实载具标识与材料一致性",
+    "version": 1
+  },
+  "summary": {
+    "blockers": 0,
+    "complete": false,
+    "counts": {
+      "不通过": 0,
+      "待人工判断": 1,
+      "通过": 2
+    },
+    "expected": 3,
+    "reviewed": 0,
+    "total": 3,
+    "verdict": "待人工判断"
+  },
+  "technical_checks": {
+    "calendar": [],
+    "checked_at": "2026-11-25T17:40:38+08:00",
+    "note": "仅核对识别文字的公历一致性与原图元数据；尺寸相同、缺EXIF或水印匹配均不能单独认定真伪。",
+    "photo_metadata": [],
+    "repeated_sizes": [],
+    "version": "local-evidence-checks-v1"
+  },
+  "time": "2026-11-25T17:40:38+08:00",
+  "trace": {
+    "corrections": [],
+    "decision_review": {
+      "count": 0,
+      "errors": [],
+      "mode": "shadow",
+      "model": "",
+      "provider": "off",
+      "scope": "all",
+      "status": "未启用",
+      "target_count": 3,
+      "threshold": 0.8,
+      "threshold_calibrated": false,
+      "time": "2026-11-25T17:40:38+08:00",
+      "total_rules": 3,
+      "traces": [],
+      "version": "decision-review-v1"
+    },
+    "harness_version": "audit-harness-v3",
+    "knowledge_snapshot": [
+      {
+        "bm25": 3.082308,
+        "chunk_id": "14fb0583c9eef332",
+        "cosine": 0.632713,
+        "end": 39,
+        "id": "9c78f4482bee4131",
+        "index": 1,
+        "line": 1,
+        "matched_terms": [
+          "具编",
+          "凭证",
+          "场标",
+          "标识",
+          "现场",
+          "登记",
+          "编号",
+          "记载",
+          "载具"
+        ],
+        "score": 0.693877,
+        "start": 0,
+        "text": "核对登记载具编号和现场凭证中的载具编号。文字记录一致仍需检查现场标识能否辨认。",
+        "title": "虚构载具核验口径",
+        "version": "v1"
+      }
+    ],
+    "manifest": [
+      {
+        "document_id": "D002",
+        "index": 0,
+        "name": "登记记录.txt",
+        "original_name": "登记记录.txt",
+        "sha256": "25f8e2736793220662ee64f04905ec013845ee4b1b2c934427e520c7025426cc",
+        "size": 80,
+        "status": "业务文件"
+      },
+      {
+        "document_id": "D001",
+        "index": 1,
+        "name": "现场凭证.txt",
+        "original_name": "现场凭证.txt",
+        "sha256": "1c123ed962319c77134163d155f2bdeebee0fa6d56bb11e4524a51f68a665e80",
+        "size": 52,
+        "status": "业务文件"
+      }
+    ],
+    "quality": {
+      "checked_at": "2026-11-25T17:40:38+08:00",
+      "errors": {},
+      "expected": 3,
+      "extra_ids": [],
+      "passed": true,
+      "returned": 3,
+      "valid": 3,
+      "version": "audit-harness-v3"
+    },
+    "recognition_usage": [],
+    "recognition_version": "visual-transcription-v2",
+    "traces": [
+      {
+        "accepted": 0,
+        "attempt": 1,
+        "checks": [
+          "规则覆盖",
+          "结论枚举",
+          "证据存在",
+          "事实与依据",
+          "通过必须有证据"
+        ],
+        "errors": {
+          "CAR-03": "当前为离线演示，未调用主模型；启用AI模式后可重新审核"
+        },
+        "evidence_count": 2,
+        "group": "现场核验",
+        "id": "5119906474f94bd2",
+        "input_hash": "9483664f54a48ff9d847f985c2283f78961d367fd6861a84744a0b7b4a49a976",
+        "rule_ids": [
+          "CAR-03"
+        ],
+        "seconds": 0.0,
+        "status": "failed",
+        "time": "2026-11-25T17:40:38+08:00",
+        "version": "audit-harness-v3"
+      }
+    ]
+  }
+}
