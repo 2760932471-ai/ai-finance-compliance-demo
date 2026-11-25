@@ -102,7 +102,8 @@ def field_result(rule, evidence):
     uncertain=False
     for key,value,page in _labelled_fields(facts,evidence):
         facts[key].append((value,page['id']))
-        if page.get('error') or page.get('recognition',{}).get('status') in ('partial','unreadable','needs_review') or '[看不清]' in value:
+        if (page.get('error') or '[看不清]' in value or
+                not page.get('confirmed') and page.get('recognition',{}).get('status') in ('partial','unreadable','needs_review')):
             uncertain=True
     ids=list(dict.fromkeys(page for values in facts.values() for _,page in values))
     missing=[f for f,values in facts.items() if not values]

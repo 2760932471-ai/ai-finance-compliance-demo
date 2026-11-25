@@ -78,6 +78,7 @@ class SchemeTests(unittest.TestCase):
         self.assertTrue(engine.summarize_results(complete,rules)['complete'])
         self.assertFalse(engine.summarize_results([complete[0]]*2,rules)['complete'])
         self.assertFalse(engine.summarize_results([],[])['complete'])
+        self.assertFalse(engine.summary({'id':'run','rules':rules,'results':complete+[complete[0]]})['complete'])
         self.assertNotIn('经销商',model.system_for(schemes.BASE['carrier']))
         self.assertIn('载具审核',model.system_for(schemes.BASE['carrier']))
 
@@ -87,6 +88,7 @@ class SchemeTests(unittest.TestCase):
         self.assertEqual(schemes.field_result(rule,pages)['verdict'],'通过')
         self.assertEqual(schemes.field_result(rule,[*pages,dict(id='D002-P1',text='现场载具编号：B123')])['verdict'],'待人工判断')
         self.assertEqual(schemes.field_result(rule,[dict(pages[0],recognition={'status':'partial'})])['verdict'],'待人工判断')
+        self.assertEqual(schemes.field_result(rule,[dict(pages[0],recognition={'status':'partial'},confirmed=True)])['verdict'],'通过')
 
     def test_directed_question_flows_into_model_and_chat_without_deciding_result(self):
         from app import harness

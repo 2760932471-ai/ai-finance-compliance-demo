@@ -88,14 +88,16 @@ def effective_results(run,reviews=None):
     # multiple reviews within one second retain their persisted write order.
     reviews=store.related('review','run_id',run['id']) if reviews is None else reviews
     reviews=sorted(reversed(reviews),key=lambda x:x['time'])
-    final={r['id']:dict(r) for r in run.get('results',[])}
-    for rev in reviews:
-        if rev['rule_id'] in final:
-            final[rev['rule_id']].setdefault('ai_result',copy.deepcopy(next(r for r in run['results'] if r['id']==rev['rule_id'])))
-            final[rev['rule_id']]['ai_verdict']=final[rev['rule_id']].get('ai_verdict',final[rev['rule_id']]['verdict'])
-            final[rev['rule_id']]['verdict']=rev['after'];final[rev['rule_id']]['review']=rev;final[rev['rule_id']]['execution']='completed'
-            final[rev['rule_id']]['evidence_ids']=rev['evidence_ids']
-    return list(final.values())
+    latest={rev['rule_id']:rev for rev in reviews}
+    final=[]
+    for original in run.get('results',[]):
+        result=dict(original)
+        rev=latest.get(result['id'])
+        if rev:
+            result.update(ai_result=copy.deepcopy(original),ai_verdict=original.get('ai_verdict',original['verdict']),
+                          verdict=rev['after'],review=rev,execution='completed',evidence_ids=rev['evidence_ids'])
+        final.append(result)
+    return final
 
 def summary(run):
     return summarize_results(effective_results(run),run.get('rules',RULES))
