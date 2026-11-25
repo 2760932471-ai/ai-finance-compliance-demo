@@ -159,7 +159,8 @@ class Handler(BaseHTTPRequestHandler):
         if not isinstance(body,dict):raise ValueError('JSON请求必须为对象')
         return body
     def gate(self,write=False):
-        security.request_origin(self.headers,self.server.server_port)
+        security.request_origin(self.headers,self.server.server_port,
+                                home_navigation=self.command=='GET' and urlparse(self.path).path=='/')
         if write and not secrets.compare_digest(self.headers.get('X-Session-Token',''),TOKEN):raise PermissionError('会话已过期，请刷新页面')
     def dispatch(self,write=False):
         self.response_status=500

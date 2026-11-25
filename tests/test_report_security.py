@@ -105,6 +105,22 @@ class SecurityContractTests(unittest.TestCase):
         self.assertEqual(self.call('/api/bootstrap', headers={'Sec-Fetch-Site':'cross-site'})[0], 403)
         self.assertEqual(self.call('/api/bootstrap', headers={'Host':'127.0.0.1:1'})[0], 403)
 
+    def test_clicked_home_link_loads_but_cross_site_data_and_writes_stay_blocked(self):
+        navigation = {'Sec-Fetch-Site':'cross-site', 'Sec-Fetch-Mode':'navigate',
+                      'Sec-Fetch-Dest':'document', 'Sec-Fetch-User':'?1'}
+        with urllib.request.urlopen(urllib.request.Request(self.base+'/', headers=navigation)) as response:
+            self.assertEqual(response.status,200)
+            self.assertEqual(response.headers.get_content_type(),'text/html')
+            self.assertIn('开始审核',response.read().decode())
+        for path in ('/api/bootstrap','/api/projects','/api/runs/abcd/documents/D001/original'):
+            self.assertEqual(self.call(path,headers=navigation)[0],403)
+        self.assertEqual(self.call('/',{},headers=navigation)[0],403)
+        for change in ({'Sec-Fetch-Mode':'cors'}, {'Sec-Fetch-Dest':'iframe'},
+                       {'Sec-Fetch-User':''}, {'Host':'attacker.example'},
+                       {'Origin':'https://attacker.example'}):
+            self.assertEqual(self.call('/',headers={**navigation,**change})[0],403)
+        self.assertEqual(self.call('/api/bootstrap')[0],200)
+
     def test_json_must_be_object_and_expected_errors_are_safe(self):
         code, data = self.call('/api/knowledge', [])
         self.assertEqual(code, 400)

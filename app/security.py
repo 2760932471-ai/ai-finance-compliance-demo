@@ -15,7 +15,7 @@ def local_file(path, directory):
     return candidate
 
 
-def request_origin(headers, port):
+def request_origin(headers, port, *, home_navigation=False):
     if hasattr(headers,'get_all') and (len(headers.get_all('Host',[]))!=1 or len(headers.get_all('Origin',[]))>1):
         raise PermissionError('请求来源头无效')
     allowed = {f'127.0.0.1:{port}', f'localhost:{port}'}
@@ -27,7 +27,12 @@ def request_origin(headers, port):
     if origin and origin not in {f'http://{host}' for host in allowed}:
         raise PermissionError('不允许跨来源请求')
     if headers.get('Sec-Fetch-Site', '').lower() == 'cross-site':
-        raise PermissionError('不允许跨站请求')
+        user_navigation = (home_navigation
+                           and headers.get('Sec-Fetch-Mode') == 'navigate'
+                           and headers.get('Sec-Fetch-Dest') == 'document'
+                           and headers.get('Sec-Fetch-User') == '?1')
+        if not user_navigation:
+            raise PermissionError('不允许跨站请求')
 
 
 def event(action, resource='', status=200):
